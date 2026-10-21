@@ -1,55 +1,59 @@
 const { fetchSheetData } = require('../services/sheetService');
 
-// Fungsi pembantu: Menghitung selisih hari antara Plan End dan Hari Ini
+// Fungsi pembantu: Menghitung selisih hari dengan dukungan format DD/MM/YYYY
 const getDaysDifference = (targetDateString) => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Reset waktu ke tengah malam agar akurat
+    today.setHours(0, 0, 0, 0); 
     
-    // Pastikan format tanggal di Sheets terbaca JS (disarankan YYYY-MM-DD atau MM/DD/YYYY)
-    const targetDate = new Date(targetDateString);
-    
-    const diffTime = targetDate - today;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Konversi milidetik ke hari
-};
+    let targetDate;
 
+    // Deteksi jika Google Sheets mengirim format tanggal DD/MM/YYYY (contoh: 28/10/2026)
+    if (targetDateString.includes('/')) {
+        const parts = targetDateString.split('/');
+        // JS menghitung bulan dari angka 0, jadi parts[1] harus dikurangi 1
+        // new Date(Tahun, Bulan, Tanggal)
+        targetDate = new Date(parts[2], parts[1] - 1, parts[0]);
+    } else {
+        // Untuk format standar internasional (YYYY-MM-DD)
+        targetDate = new Date(targetDateString);
+    }
+
+    const diffTime = targetDate - today;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+};
 const getProjects = async (req, res) => {
     try {
-        // 1. Ambil data mentah dari Google Sheets
         const rawProjects = await fetchSheetData();
-        
-        // Parameter pencarian dari Frontend (contoh: ?startDate=2026-10-01&endDate=2026-10-31)
         const { startDate, endDate, highlight } = req.query;
 
-        // 2. Injeksi Status Dinamis (Logika Kill Switch & Countdown)
         let processedProjects = rawProjects.map(project => {
             const planEnd = project['Plan End'];
-            const actualEnd = project['Actual End'];
-            const status = project['Status'] || '';
-            const remarks = project['Remarks'] || '';
+            const status = project['Status'] ? project['Status'].trim() : '';
+            const normalizedStatus = status.toLowerCase();
             
-            let computedStatus = 'On Going'; 
+            let computedStatus = status; // Bawaan awal: langsung ambil teks dari kolom Status
             let daysRemaining = null;
 
-            if (planEnd) {
+            // PRIORITAS 1: Baca langsung dari kolom Status
+            // Jika tertulis Completed/Done, langsung kunci statusnya, abaikan perhitungan tanggal
+            if (normalizedStatus === 'completed' || normalizedStatus === 'done') {
+                computedStatus = 'Completed';
+            } 
+            // PRIORITAS 2: Jika belum selesai, jalankan deteksi tanggal (Delayed / Due Soon)
+            else if (planEnd) {
                 daysRemaining = getDaysDifference(planEnd);
                 
-                // Syarat "Kill Switch": Actual End dan Remarks tidak boleh kosong, ATAU status sudah Done
-                const isCompleted = (actualEnd !== '' && remarks !== '') || 
-                                    status.toLowerCase() === 'completed' || 
-                                    status.toLowerCase() === 'done';
-                
-                if (isCompleted) {
-                    computedStatus = 'Completed'; // Hijau
-                } else if (daysRemaining < 0) {
-                    computedStatus = 'Delayed';   // Merah (Overdue)
+                if (daysRemaining < 0) {
+                    computedStatus = 'Delayed';   // Lewat dari Plan End
                 } else if (daysRemaining >= 0 && daysRemaining <= 10) {
-                    computedStatus = 'Due Soon';  // Oren (Kritis 10 hari)
+                    computedStatus = 'Due Soon';  // Sisa waktu 0 - 10 hari
                 } else {
-                    computedStatus = 'On Going';  // Kuning (Aman)
+                    // Waktu masih aman (>10 hari), kembali baca teks dari kolom Status (misal: "On Going")
+                    // Jika kolom status kosong di Excel, otomatis beri label 'On Going'
+                    computedStatus = status === '' ? 'On Going' : status;
                 }
             }
 
-            // Kembalikan objek proyek beserta tambahan 2 kolom baru hasil kalkulasi server
             return {
                 ...project,
                 computedStatus,
@@ -57,32 +61,33 @@ const getProjects = async (req, res) => {
             };
         });
 
-        // 3. Eksekusi Filter Rentang Tanggal (Calendar Picker)
+        // Filter Rentang Tanggal
         if (startDate && endDate) {
             const start = new Date(startDate);
             const end = new Date(endDate);
-            
             processedProjects = processedProjects.filter(p => {
                 const pEnd = new Date(p['Plan End']);
                 return pEnd >= start && pEnd <= end;
             });
         }
 
-        // 4. Eksekusi Filter Project Health (Commercial / Non-Commercial)
+        // Filter Highlight
         if (highlight) {
-            // Asumsi frontend mengirim parameter ?highlight=Yes
             processedProjects = processedProjects.filter(p => p['Highlight Project'] === highlight);
         }
 
-        // 5. Kalkulasi Summary Metrics (Biar React tinggal menampilkan angkanya)
+        // Kalkulasi Metrik (On Going merangkum semua yang belum Completed)
         const metrics = {
-            onGoing: processedProjects.filter(p => p.computedStatus === 'On Going').length,
+            // Menghitung semua proyek KECUALI yang sudah 'Completed'
+            onGoing: processedProjects.filter(p => p.computedStatus !== 'Completed').length,
+            
+            // Due Soon dan Delayed tetap dihitung terpisah untuk kartu metrik spesifik
             dueSoon: processedProjects.filter(p => p.computedStatus === 'Due Soon').length,
             delayed: processedProjects.filter(p => p.computedStatus === 'Delayed').length,
+            
             completed: processedProjects.filter(p => p.computedStatus === 'Completed').length,
         };
 
-        // 6. Kirim output final ke Frontend
         res.status(200).json({
             success: true,
             totalData: processedProjects.length,
