@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import '../styles/Dashboard.css';
 import '../styles/Project.css';
-import { fetchExcelData } from '../utils/fetchExcel';
 import { 
   FiGrid,
   FiFolder,
@@ -11,10 +11,10 @@ import {
   FiChevronsRight,
   FiChevronLeft,
   FiChevronRight,
-  FiLogOut
+  FiLogOut,
+  FiFilter,
+  FiRotateCcw
 } from 'react-icons/fi';
-
-const SHAREPOINT_LINK = 'https://xlo365-my.sharepoint.com/:x:/g/personal/intr_dhannya_xlsmart_co_id/IQD1GsY01XbVT6XJqFGIcy_vAZn_AcqW4X0m_Og3AgdjiuA?e=HogYEf';
 
 const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -22,89 +22,114 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // State Filter & Search
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
-  const [filterCategory, setFilterCategory] = useState('Date');
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filterPic, setFilterPic] = useState('PIC');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  const [pmList, setPmList] = useState([]);
+  const [phaseList, setPhaseList] = useState([]);
+  const [statusList, setStatusList] = useState([]);
+
+  const [selectedPm, setSelectedPm] = useState('All PM');
+  const [selectedPhase, setSelectedPhase] = useState('All Phases');
+  const [selectedStatus, setSelectedStatus] = useState('All Statuses');
+  
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
   useEffect(() => {
-    const loadExcel = async () => {
+    const fetchProjectData = async () => {
       setLoading(true);
-      try {
-        const rawData = await fetchExcelData(SHAREPOINT_LINK);
-        
-        const formattedData = rawData.map((row, index) => ({
-          id: index + 1,
-          projectName: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney+',
-          phase: row['Phase'] || row['phase'] || 'Development',
-          status: row['Status'] || row['status'] || 'Done',
-          planStart: row['Plan Start'] || row['plannedStart'] || '15/09/2026',
-          planEnd: row['Plan End'] || row['plannedEnd'] || '18/09/2026',
-          actualStart: row['Actual Start'] || row['actualStart'] || '01/10/2024',
-          actualEnd: row['Actual End'] || row['actualEnd'] || '9/30/2026',
-          pm: row['PM'] || row['PIC'] || 'AL GANTENG'
-        }));
+      const token = localStorage.getItem('vantage_token');
+      
+      if (!token) {
+        if(onLogout) onLogout();
+        return;
+      }
 
-        setProjects(formattedData);
-        setFilteredProjects(formattedData);
+      try {
+        const response = await axios.get('http://localhost:5000/api/projects', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data.success) {
+            const rawData = response.data.data || [];
+            
+            const formattedData = rawData.map((row, index) => {
+              const pmVal = row['Project Manager'] || row['PM'] || row['PIC'] || row['pic'] || 'AL GANTENG';
+              const phaseVal = row['Phase'] || row['phase'] || 'Development';
+              const statusVal = row.computedStatus || row['Status'] || 'On Going';
+              
+              return {
+                id: index + 1,
+                projectName: String(row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney+'),
+                phase: String(phaseVal),
+                status: String(statusVal),
+                planStart: String(row['Plan Start'] || row['plannedStart'] || '-'),
+                planEnd: String(row['Plan End'] || row['plannedEnd'] || '-'),
+                actualStart: String(row['Actual Start'] || row['actualStart'] || '-'),
+                actualEnd: String(row['Actual End'] || row['actualEnd'] || '-'),
+                pm: String(pmVal),
+                rawData: row 
+              };
+            });
+
+            const uniquePms = Array.from(new Set(formattedData.map(item => item.pm))).filter(Boolean);
+            const uniquePhases = Array.from(new Set(formattedData.map(item => item.phase))).filter(Boolean);
+            const uniqueStatuses = Array.from(new Set(formattedData.map(item => item.status))).filter(Boolean);
+
+            setPmList(uniquePms);
+            setPhaseList(uniquePhases);
+            setStatusList(uniqueStatuses);
+
+            setProjects(formattedData);
+            setFilteredProjects(formattedData);
+        }
       } catch (err) {
-        console.error('Gagal memuat data Excel:', err);
-        const fallbackData = Array.from({ length: 84 }, (_, i) => ({
-          id: i + 1,
-          projectName: 'Disney+',
-          phase: 'Development',
-          status: 'Done',
-          planStart: '15/09/2026',
-          planEnd: '18/09/2026',
-          actualStart: '01/10/2024',
-          actualEnd: '9/30/2026',
-          pm: i % 2 === 0 ? 'Fina' : 'AL GANTENG'
-        }));
-        setProjects(fallbackData);
-        setFilteredProjects(fallbackData);
+        console.error('Gagal memuat data dari Backend:', err);
+        if (err.response?.status === 401 && onLogout) {
+            onLogout();
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    loadExcel();
-  }, []);
+    fetchProjectData();
+  }, [onLogout]); 
 
   useEffect(() => {
     let result = [...projects];
 
     if (searchQuery.trim() !== '') {
-      const q = searchQuery.toLowerCase();
+      const q = String(searchQuery).toLowerCase();
       result = result.filter(item => 
-        item.projectName.toLowerCase().includes(q) ||
-        item.phase.toLowerCase().includes(q) ||
-        item.status.toLowerCase().includes(q)
+        String(item.projectName).toLowerCase().includes(q) ||
+        String(item.phase).toLowerCase().includes(q) ||
+        String(item.status).toLowerCase().includes(q) ||
+        String(item.pm).toLowerCase().includes(q)
       );
     }
 
-    if (filterCategory === 'Backend') {
-      result = result.filter(item => item.phase.toLowerCase().includes('backend'));
-    } else if (filterCategory === 'Delayed') {
-      result = result.filter(item => item.status.toLowerCase().includes('delay'));
-    } else if (filterCategory === 'Fina') {
-      result = result.filter(item => item.pm.toLowerCase() === 'fina');
-    } else if (filterCategory === 'Disney +') {
-      result = result.filter(item => item.projectName.toLowerCase().includes('disney'));
+    if (selectedPm !== 'All PM') {
+      result = result.filter(item => String(item.pm).toLowerCase() === String(selectedPm).toLowerCase());
     }
 
-    if (filterPic !== 'PIC') {
-      result = result.filter(item => item.pm.toLowerCase() === filterPic.toLowerCase());
+    if (selectedPhase !== 'All Phases') {
+      result = result.filter(item => String(item.phase).toLowerCase() === String(selectedPhase).toLowerCase());
+    }
+
+    if (selectedStatus !== 'All Statuses') {
+      result = result.filter(item => String(item.status).toLowerCase() === String(selectedStatus).toLowerCase());
     }
 
     if (dateStart) {
       result = result.filter(item => {
-        const parts = item.planStart.split('/');
+        const strPlanStart = String(item.planStart);
+        if (!strPlanStart.includes('/')) return false;
+        const parts = strPlanStart.split('/');
         if (parts.length === 3) {
           const itemDate = new Date(parts[2], parts[1] - 1, parts[0]);
           return itemDate >= new Date(dateStart);
@@ -115,7 +140,9 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
 
     if (dateEnd) {
       result = result.filter(item => {
-        const parts = item.planEnd.split('/');
+        const strPlanEnd = String(item.planEnd);
+        if (!strPlanEnd.includes('/')) return false;
+        const parts = strPlanEnd.split('/');
         if (parts.length === 3) {
           const itemDate = new Date(parts[2], parts[1] - 1, parts[0]);
           return itemDate <= new Date(dateEnd);
@@ -124,9 +151,18 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
       });
     }
 
+    result.sort((a, b) => {
+      const getDateObj = (dateStr) => {
+        if (!dateStr || !dateStr.includes('/')) return new Date(0);
+        const p = dateStr.split('/');
+        return p.length === 3 ? new Date(p[2], p[1] - 1, p[0]) : new Date(0);
+      };
+      return getDateObj(b.planStart) - getDateObj(a.planStart);
+    });
+
     setFilteredProjects(result);
     setCurrentPage(1);
-  }, [searchQuery, dateStart, dateEnd, filterCategory, filterPic, projects]);
+  }, [searchQuery, dateStart, dateEnd, selectedPm, selectedPhase, selectedStatus, projects]);
 
   const totalPages = Math.ceil(filteredProjects.length / itemsPerPage) || 1;
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -139,18 +175,31 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
     }
   };
 
-  const handleSelectFilter = (val) => {
-    setFilterCategory(val);
+  const handleResetFilter = () => {
+    setSelectedPhase('All Phases');
+    setSelectedStatus('All Statuses');
+    setSelectedPm('All PM');
+    setDateStart('');
+    setDateEnd('');
+    setSearchQuery('');
     setIsFilterOpen(false);
   };
 
   return (
     <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* Sidebar Area */}
       <aside className="sidebar">
         <div className="sidebar-top">
-          <div className="sidebar-logo-circle">
-            <span className="sidebar-logo-text">VANTAGE</span>
+          <div className="sidebar-top-row">
+            <div className="sidebar-logo-circle">
+              <span className="sidebar-logo-text">VANTAGE</span>
+            </div>
+            <button 
+              className="sidebar-collapse-btn-small" 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              aria-label="Toggle Sidebar"
+            >
+              {sidebarCollapsed ? <FiChevronsRight size={14} /> : <FiChevronsLeft size={14} />}
+            </button>
           </div>
           <hr className="sidebar-divider" />
         </div>
@@ -180,12 +229,9 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="project-page-container">
         <header className="project-top-header">
-          <button className="sidebar-toggle-btn" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label="Toggle Sidebar">
-            {sidebarCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
-          </button>
+          <div style={{ width: '0px' }}></div>
 
           <div className="project-title-pill">
             <h1>PROJECTS</h1>
@@ -202,7 +248,6 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
           </div>
         </header>
 
-        {/* Filter Controls Bar */}
         <section className="project-filter-bar">
           <div className="filter-group">
             <label>Date Start</label>
@@ -212,7 +257,6 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
                 value={dateStart} 
                 onChange={(e) => setDateStart(e.target.value)}
                 className="filter-pill-date"
-                placeholder="dd/mm/yyyy"
               />
             </div>
           </div>
@@ -225,94 +269,92 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
                 value={dateEnd} 
                 onChange={(e) => setDateEnd(e.target.value)}
                 className="filter-pill-date"
-                placeholder="dd/mm/yyyy"
               />
             </div>
           </div>
 
-          <div className="filter-group">
+          <div className="filter-group" style={{ position: 'relative' }}>
             <label>Filter</label>
-            <div className="custom-dropdown-wrapper">
-              <button 
-                type="button" 
-                className="filter-pill-button"
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-              >
-                {filterCategory}
-              </button>
-
-              {isFilterOpen && (
-                <div className="custom-filter-dropdown">
-                  <div 
-                    className={`filter-item ${filterCategory === 'This Month' ? 'active' : ''}`}
-                    onClick={() => handleSelectFilter('This Month')}
-                  >
-                    <span>This Month</span>
-                    <span className="arrow-indicator">∧</span>
-                  </div>
-
-                  <div 
-                    className={`filter-item ${filterCategory === 'Last Month' ? 'active' : ''}`}
-                    onClick={() => handleSelectFilter('Last Month')}
-                  >
-                    <span>Last Month</span>
-                  </div>
-
-                  <div 
-                    className={`filter-item ${filterCategory === 'Date' ? 'active' : ''}`}
-                    onClick={() => handleSelectFilter('Date')}
-                  >
-                    <span>Date</span>
-                    <span className="arrow-indicator">∨</span>
-                  </div>
-
-                  <div 
-                    className="filter-item-badge-row"
-                    onClick={() => handleSelectFilter('Backend')}
-                  >
-                    <span className="badge-label">Phase</span>
-                    <span className="filter-badge">Backend</span>
-                  </div>
-
-                  <div 
-                    className="filter-item-badge-row"
-                    onClick={() => handleSelectFilter('Delayed')}
-                  >
-                    <span className="badge-label">Status</span>
-                    <span className="filter-badge">Delayed</span>
-                  </div>
-
-                  <div 
-                    className="filter-item-badge-row"
-                    onClick={() => handleSelectFilter('Fina')}
-                  >
-                    <span className="badge-label">PM</span>
-                    <span className="filter-badge">Fina</span>
-                  </div>
-
-                  <div 
-                    className="filter-item-badge-row"
-                    onClick={() => handleSelectFilter('Disney +')}
-                  >
-                    <span className="badge-label">Name</span>
-                    <span className="filter-badge">Disney +</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <label>Filter</label>
-            <select 
-              value={filterPic}
-              onChange={(e) => setFilterPic(e.target.value)}
-              className="filter-pill-select"
+            <button 
+              type="button" 
+              className="filter-pill-button"
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
             >
-              <option value="PIC">PIC</option>
-              <option value="Fina">Fina</option>
-              <option value="AL">AL</option>
-            </select>
+              <FiFilter style={{ marginRight: '6px' }} /> Advanced Filter ∨
+            </button>
+
+            {isFilterOpen && (
+              <div className="custom-filter-dropdown" style={{ padding: '12px', width: '240px', display: 'flex', flexDirection: 'column', gap: '10px', background: '#fff', position: 'absolute', top: '100%', left: 0, zIndex: 100, borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555' }}>Phase</label>
+                  <select 
+                    value={selectedPhase}
+                    onChange={(e) => setSelectedPhase(e.target.value)}
+                    className="filter-pill-select"
+                    style={{ width: '100%', marginTop: '4px' }}
+                  >
+                    <option value="All Phases">All Phases</option>
+                    {phaseList.map((ph, idx) => (
+                      <option key={idx} value={ph}>{ph}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555' }}>Status</label>
+                  <select 
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="filter-pill-select"
+                    style={{ width: '100%', marginTop: '4px' }}
+                  >
+                    <option value="All Statuses">All Statuses</option>
+                    {statusList.map((st, idx) => (
+                      <option key={idx} value={st}>{st}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#555' }}>PM</label>
+                  <select 
+                    value={selectedPm}
+                    onChange={(e) => setSelectedPm(e.target.value)}
+                    className="filter-pill-select"
+                    style={{ width: '100%', marginTop: '4px' }}
+                  >
+                    <option value="All PM">All PM</option>
+                    {pmList.map((pmName, idx) => (
+                      <option key={idx} value={pmName}>{pmName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetFilter}
+                  style={{
+                    backgroundColor: '#ef4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '6px 10px',
+                    fontSize: '11px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    marginTop: '4px'
+                  }}
+                >
+                  <FiRotateCcw size={12} /> Reset Filter
+                </button>
+
+              </div>
+            )}
           </div>
 
           <div className="filter-group search-group">
@@ -321,7 +363,7 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
               <FiSearch className="search-icon" />
               <input 
                 type="text" 
-                placeholder="Search" 
+                placeholder="Search project..." 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-pill-input"
@@ -330,7 +372,6 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
           </div>
         </section>
 
-        {/* Data Table */}
         <section className="project-table-container">
           <table className="project-table">
             <thead>
@@ -375,7 +416,6 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
           </table>
         </section>
 
-        {/* Pagination */}
         <footer className="project-pagination">
           <button 
             className="page-nav-btn" 

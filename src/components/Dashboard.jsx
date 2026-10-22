@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import '../styles/Dashboard.css';
-import { fetchExcelData } from '../utils/fetchExcel';
 import { 
   FiGrid, 
   FiFolder, 
@@ -13,26 +13,25 @@ import {
   FiLogOut
 } from 'react-icons/fi';
 
-const SHAREPOINT_LINK = 'https://xlo365-my.sharepoint.com/:x:/g/personal/intr_dhannya_xlsmart_co_id/IQD1GsY01XbVT6XJqFGIcy_vAZn_AcqW4X0m_Og3AgdjiuA?e=HogYEf';
-
 const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProject }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  
+  // State Data dari Backend
   const [commercialProjects, setCommercialProjects] = useState([]);
   const [nonCommercialProjects, setNonCommercialProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // State filter priority
+  // State filter priority & tanggal
   const [commFilter, setCommFilter] = useState('all');
   const [nonCommFilter, setNonCommFilter] = useState('all');
-
-  // State filter tanggal
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // State Popover Notifikasi
+  // State Notifikasi
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
+  // State Metrics langsung dari Backend
   const [statsCount, setStatsCount] = useState({
     ongoing: 0,
     delayed: 0,
@@ -40,7 +39,6 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
     completed: 0
   });
 
-  // Ucapan salam dinamis berdasarkan jam lokal
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour >= 4 && hour < 12) return 'GOOD MORNING';
@@ -49,92 +47,135 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
   };
 
   useEffect(() => {
-    const loadExcel = async () => {
+    const fetchDashboardData = async () => {
       setLoading(true);
+      const token = localStorage.getItem('vantage_token');
+      
+      if (!token) {
+        if(onLogout) onLogout();
+        return;
+      }
+
       try {
-        const rawData = await fetchExcelData(SHAREPOINT_LINK);
+        let url = 'http://localhost:5000/api/projects';
         
-        const formattedData = rawData.map((row, index) => {
-          const statusRaw = String(row['Status'] || row['status'] || 'On Going');
-          const statusLower = statusRaw.toLowerCase();
-          
-          let statusType = 'ongoing-yellow';
-          if (statusLower.includes('delay')) {
-            statusType = 'delayed';
-          } else if (statusLower.includes('complet')) {
-            statusType = 'completed';
-          } else if (statusLower.includes('due') || row['Due'] || row['due']) {
-            statusType = 'ongoing-orange';
-          }
-
-          const category = String(row['Category'] || row['Type'] || row['type'] || 'commercial').toLowerCase();
-
-          return {
-            id: index,
-            projectName: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney + Project',
-            title: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney + Project',
-            priority: row['Priority'] || row['priority'] || 'PRIORITY 1',
-            plannedEnd: row['Planned End'] || row['plannedEnd'] || '28/09/2026',
-            actualEnd: row['Actual End'] || row['actualEnd'] || '28/09/2026',
-            status: statusRaw,
-            statusType: statusType,
-            due: row['Due'] || row['due'] || (statusLower.includes('due') ? statusRaw : null),
-            type: category.includes('non') ? 'non-commercial' : 'commercial',
-            pm: row['PM'] || row['PIC'] || 'AL GANTENG'
-          };
+        if (startDate && endDate) {
+            url += `?startDate=${startDate}&endDate=${endDate}`;
+        }
+        
+        const response = await axios.get(url, {
+            headers: { Authorization: `Bearer ${token}` }
         });
 
-        processProjects(formattedData);
-        generateNotificationsFromData(formattedData);
+        if (response.data.success) {
+            const rawData = response.data.data;
+            
+            const formattedData = rawData.map((row, index) => {
+              const computed = row.computedStatus || row['Status'] || 'On Going';
+              const computedLower = computed.toLowerCase();
+              
+              let statusType = 'ongoing-yellow'; 
+              let displayStatus = computed;
+              let dueText = null;
+              const daysRem = row.daysRemaining !== undefined ? Number(row.daysRemaining) : null;
+
+              if (computedLower === 'delayed') {
+                statusType = 'delayed';
+                displayStatus = 'On Going'; 
+                
+                if (daysRem !== null && daysRem < 0) {
+                  dueText = `Delayed for ${Math.abs(daysRem)} days`;
+                } else {
+                  dueText = 'Delayed';
+                }
+              } else if (computedLower === 'completed') {
+                statusType = 'completed';
+              } else if (computedLower === 'due soon' || computedLower === 'on going') {
+                if (daysRem !== null && daysRem >= 0 && daysRem <= 10) {
+                  dueText = `${daysRem} Days Remaining`;
+                  if (computedLower === 'due soon') {
+                    statusType = 'ongoing-orange';
+                  }
+                } else {
+                  dueText = null;
+                }
+              }
+
+              const commColValue = String(
+                row['Commercial / Non Commercial?'] || 
+                row['Commercial / Non Commercial'] || 
+                row['Category'] || 
+                row['Type'] || ''
+              ).toLowerCase().trim();
+
+              const isNonComm = commColValue.includes('non');
+
+              return {
+                id: index,
+                projectName: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney + Project',
+                title: row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney + Project',
+                priority: row['Priority'] || row['priority'] || 'PRIORITY 1',
+                plannedEnd: row['Plan End'] || row['Planned End'] || '28/09/2026',
+                actualEnd: row['Actual End'] || '-', 
+                status: displayStatus,
+                statusType: statusType, 
+                due: dueText,
+                type: isNonComm ? 'non-commercial' : 'commercial',
+                pm: row['PM'] || row['PIC'] || 'AL GANTENG',
+                rawData: row
+              };
+            });
+
+            setStatsCount({
+                ongoing: response.data.metrics.onGoing,
+                delayed: response.data.metrics.delayed,
+                dueSoon: response.data.metrics.dueSoon,
+                completed: response.data.metrics.completed
+            });
+
+            const highlightOnly = formattedData.filter(item => {
+                const highlightValue = item.rawData['Highlight Project'] || '';
+                return highlightValue.toString().toLowerCase() === 'yes';
+            });
+
+            const commercial = highlightOnly.filter(item => item.type === 'commercial');
+            const nonCommercial = highlightOnly.filter(item => item.type === 'non-commercial');
+        
+            setCommercialProjects(commercial);
+            setNonCommercialProjects(nonCommercial);
+
+            generateNotificationsFromData(highlightOnly);
+        }
       } catch (err) {
-        console.error('Gagal memuat data Excel dari link SharePoint:', err);
-        const fallbackData = [
-          { id: 1, type: 'commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 1', plannedEnd: '28/09/2026', actualEnd: '1/10/2026', status: 'Delayed [X] Days', statusType: 'delayed', pm: 'AL GANTENG' },
-          { id: 2, type: 'commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 1', plannedEnd: '28/09/2026', actualEnd: '28/09/2026', status: 'On Going', statusType: 'ongoing-orange', due: 'Due in [X] Days', pm: 'AL GANTENG' },
-          { id: 3, type: 'commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 1', plannedEnd: '28/09/2026', actualEnd: '28/09/2026', status: 'On Going', statusType: 'ongoing-yellow', pm: 'AL GANTENG' },
-          { id: 4, type: 'commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 1', plannedEnd: '28/09/2026', actualEnd: '28/09/2026', status: 'Completed', statusType: 'completed', pm: 'AL GANTENG' },
-          { id: 5, type: 'commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 2', plannedEnd: '28/09/2026', actualEnd: '1/10/2026', status: 'Delayed [X] Days', statusType: 'delayed', pm: 'AL GANTENG' },
-          { id: 6, type: 'commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 2', plannedEnd: '28/09/2026', actualEnd: '28/09/2026', status: 'On Going', statusType: 'ongoing-orange', due: 'Due in [X] Days', pm: 'AL GANTENG' },
-          { id: 7, type: 'non-commercial', title: 'Disney + Project', projectName: 'Disney + Project', priority: 'PRIORITY 3', plannedEnd: '15/10/2026', actualEnd: '20/10/2026', status: 'On Going', statusType: 'ongoing-yellow', pm: 'AL GANTENG' },
-        ];
-        processProjects(fallbackData);
-        generateNotificationsFromData(fallbackData);
+        console.error('Gagal memuat data dari Backend:', err);
+        if (err.response?.status === 401 && onLogout) {
+            onLogout();
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    loadExcel();
-  }, []);
-
-  const processProjects = (dataList) => {
-    const commercial = dataList.filter(item => item.type === 'commercial');
-    const nonCommercial = dataList.filter(item => item.type === 'non-commercial');
-
-    setCommercialProjects(commercial);
-    setNonCommercialProjects(nonCommercial.length > 0 ? nonCommercial : commercial);
-
-    const ongoing = dataList.filter(p => p.statusType.includes('ongoing')).length;
-    const delayed = dataList.filter(p => p.statusType === 'delayed').length;
-    const dueSoon = dataList.filter(p => p.due).length;
-    const completed = dataList.filter(p => p.statusType === 'completed').length;
-
-    setStatsCount({ ongoing, delayed, dueSoon, completed });
-  };
+    fetchDashboardData();
+  }, [startDate, endDate, onLogout]);
 
   const generateNotificationsFromData = (dataList) => {
     if (!dataList || dataList.length === 0) return;
 
-    const p1 = dataList[0]?.title || 'Project XYZ';
-    const p2 = dataList[1]?.title || p1;
-    const p3 = dataList[2]?.title || p1;
+    const criticalProjects = dataList.filter(p => p.statusType === 'ongoing-orange' || p.statusType === 'delayed');
+    
+    if(criticalProjects.length === 0) {
+        setNotifications([{ title: '✅ All Clear', desc: 'Tidak ada project Highlight yang mendekati deadline.' }]);
+        return;
+    }
 
-    const notifItems = [
-      { title: '⏳ Countdown: 10 Days Left', desc: `Reminder: 10 days left until the planned end date for ${p1}.` },
-      { title: '⏳ Countdown: [X] Days Left', desc: `Reminder: Only [X] days left to complete ${p2}.` },
-      { title: '📌 Due Today: ' + p2, desc: `Today is the Planned End Date for ${p2}!` },
-      { title: '🚨 Overdue: 1 Day Passed', desc: `${p3} is 1 day overdue!` }
-    ];
+    const notifItems = criticalProjects.slice(0, 4).map(p => {
+        if(p.statusType === 'delayed') {
+            return { title: `🚨 Delayed: ${p.title}`, desc: `${p.title} telah melewati batas Planned End!` };
+        } else {
+            return { title: `⏳ Due Soon: ${p.title}`, desc: `Sisa waktu ${p.due} untuk menyelesaikan project.` };
+        }
+    });
 
     setNotifications(notifItems);
   };
@@ -145,47 +186,29 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
     return Array.from(new Set([...defaultPriorities, ...dataPriorities])).sort();
   };
 
-  const isWithinDateRange = (item) => {
-    if (!startDate && !endDate) return true;
-    const dateStr = item.plannedEnd || item.actualEnd;
-    if (!dateStr) return true;
-    const parts = dateStr.split('/');
-    if (parts.length !== 3) return true;
-
-    const projectDate = new Date(parts[2], parts[1] - 1, parts[0]);
-
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      if (projectDate < start) return false;
-    }
-
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      if (projectDate > end) return false;
-    }
-
-    return true;
-  };
-
   const filteredCommercial = commercialProjects.filter(item => {
-    const matchPriority = commFilter === 'all' ? true : item.priority === commFilter;
-    return matchPriority && isWithinDateRange(item);
+    return commFilter === 'all' ? true : item.priority === commFilter;
   });
 
   const filteredNonCommercial = nonCommercialProjects.filter(item => {
-    const matchPriority = nonCommFilter === 'all' ? true : item.priority === nonCommFilter;
-    return matchPriority && isWithinDateRange(item);
+    return nonCommFilter === 'all' ? true : item.priority === nonCommFilter;
   });
 
   return (
     <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* Sidebar Area */}
       <aside className="sidebar">
         <div className="sidebar-top">
-          <div className="sidebar-logo-circle">
-            <span className="sidebar-logo-text">VANTAGE</span>
+          <div className="sidebar-top-row">
+            <div className="sidebar-logo-circle">
+              <span className="sidebar-logo-text">VANTAGE</span>
+            </div>
+            <button 
+              className="sidebar-collapse-btn-small" 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              aria-label="Toggle Sidebar"
+            >
+              {sidebarCollapsed ? <FiChevronsRight size={14} /> : <FiChevronsLeft size={14} />}
+            </button>
           </div>
           <hr className="sidebar-divider" />
         </div>
@@ -215,17 +238,9 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="main-content">
         <header className="dashboard-header">
           <div className="header-left">
-            <button 
-              className="toggle-sidebar-btn" 
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              aria-label="Toggle Sidebar"
-            >
-              {sidebarCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
-            </button>
             <div className="welcome-text">
               <h1>
                 <span className="text-dark-blue">{getGreeting()} </span>
@@ -244,7 +259,7 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
                   title="Notifications"
                 >
                   <FiBell className="bell-icon" />
-                  <span className="bell-badge">{notifications.length || 8}</span>
+                  <span className="bell-badge">{notifications.length || 0}</span>
                 </div>
 
                 {showNotifications && (
@@ -284,7 +299,6 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
           </div>
         </header>
 
-        {/* Stats Grid */}
         <section className="stats-grid">
           <div className="stat-card ongoing">
             <div className="stat-card-header">
@@ -293,7 +307,7 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
             </div>
             <div className="stat-card-body">
               <span className="stat-value">{loading ? '...' : statsCount.ongoing}</span>
-              <button className="view-all-btn">View All</button>
+              <button className="view-all-btn" onClick={() => onNavigate && onNavigate('projects')}>View All</button>
             </div>
           </div>
 
@@ -304,7 +318,7 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
             </div>
             <div className="stat-card-body">
               <span className="stat-value">{loading ? '...' : statsCount.delayed}</span>
-              <button className="view-all-btn">View All</button>
+              <button className="view-all-btn" onClick={() => onNavigate && onNavigate('projects')}>View All</button>
             </div>
           </div>
 
@@ -315,7 +329,7 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
             </div>
             <div className="stat-card-body">
               <span className="stat-value">{loading ? '...' : statsCount.dueSoon}</span>
-              <button className="view-all-btn">View All</button>
+              <button className="view-all-btn" onClick={() => onNavigate && onNavigate('projects')}>View All</button>
             </div>
           </div>
 
@@ -326,16 +340,15 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
             </div>
             <div className="stat-card-body">
               <span className="stat-value">{loading ? '...' : statsCount.completed}</span>
-              <button className="view-all-btn">View All</button>
+              <button className="view-all-btn" onClick={() => onNavigate && onNavigate('projects')}>View All</button>
             </div>
           </div>
         </section>
 
-        {/* Health Columns */}
         <section className="project-health-grid">
           <div className="health-column">
             <div className="column-header">
-              <span>Commercial Project Health</span>
+              <span>Commercial Project Health (Highlight)</span>
               <select 
                 className="filter-select"
                 value={commFilter}
@@ -377,12 +390,15 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
                   </div>
                 </div>
               ))}
+              {filteredCommercial.length === 0 && !loading && (
+                 <p style={{textAlign: 'center', marginTop: '20px', color: '#666'}}>Tidak ada project Highlight komersial.</p>
+              )}
             </div>
           </div>
 
           <div className="health-column">
             <div className="column-header">
-              <span>Non Commercial Project Health</span>
+              <span>Non Commercial Project Health (Highlight)</span>
               <select 
                 className="filter-select"
                 value={nonCommFilter}
@@ -424,6 +440,9 @@ const Dashboard = ({ onLogout, activeTab = 'overview', onNavigate, onSelectProje
                   </div>
                 </div>
               ))}
+              {filteredNonCommercial.length === 0 && !loading && (
+                 <p style={{textAlign: 'center', marginTop: '20px', color: '#666'}}>Tidak ada project Highlight non-komersial.</p>
+              )}
             </div>
           </div>
         </section>

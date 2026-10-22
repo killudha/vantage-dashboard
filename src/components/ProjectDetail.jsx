@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import '../styles/Dashboard.css';
 import '../styles/ProjectDetail.css';
 import { 
@@ -13,29 +14,117 @@ import {
 
 const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const [tasks, setTasks] = useState({
+    planning: [],
+    onProgress: [],
+    delayed: [],
+    done: []
+  });
 
-  // Mengambil nama project dan PM yang dipilih
-  const projectName = project?.projectName || project?.title || 'Disney+';
-  const projectPM = project?.pm || 'AL GANTENG';
+  const [popupTask, setPopupTask] = useState(null);
 
-  // Dummy task data presisi sesuai desain
-  const dummyTask = {
-    category: 'Back End',
-    priority: 'High',
-    title: 'UAT',
-    desc: 'Finding: ERROR 211 during activation due to...',
-    segment: 'GKS',
-    planStart: '29/10/2026',
-    planEnd: '29/10/2026'
+  const projectName = project?.projectName || project?.title || project?.rawData?.['Project Name'] || 'Project';
+  const projectPM = project?.pm || project?.rawData?.['PM'] || project?.rawData?.['Project Manager'] || 'AL GANTENG';
+
+  useEffect(() => {
+    const fetchProjectDetails = async () => {
+      if (!project) return;
+      setLoading(true);
+      
+      const token = localStorage.getItem('vantage_token');
+      if (!token) {
+        if(onLogout) onLogout();
+        return;
+      }
+
+      try {
+        const response = await axios.get('http://localhost:5000/api/projects', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (response.data.success) {
+          const allData = response.data.data || [];
+          
+          const projectTasks = allData.filter(item => {
+            const itemProjName = String(item['Project Name'] || item['Title'] || item['Nama Project'] || '').trim().toLowerCase();
+            const currentProjName = String(projectName).trim().toLowerCase();
+            return itemProjName === currentProjName;
+          });
+
+          const mappedTasks = projectTasks.map((row, index) => {
+            let phaseVal = row['Phase'] || row['phase'] || 'Back End';
+            let taskVal = row['Task / Step'] || row['Task'] || row['task'] || 'UAT';
+            let remarkVal = row['Remark'] || row['remark'] || row['Findings'] || 'Tidak ada catatan.';
+            let complexityVal = row['Complexity'] || row['complexity'] || 'High';
+            let segmentVal = row['Segment'] || row['segment'] || row['Segmen'] || '-'; 
+            let planStartVal = row['Plan Start'] || row['plannedStart'] || '-';
+            let planEndVal = row['Plan End'] || row['plannedEnd'] || '-';
+
+            Object.keys(row).forEach(key => {
+              const cleanKey = key.toLowerCase().trim();
+              
+              if (cleanKey.includes('phase')) phaseVal = row[key];
+              if (cleanKey.includes('task') || cleanKey.includes('step')) taskVal = row[key];
+              if (cleanKey.includes('remark') || cleanKey.includes('finding')) remarkVal = row[key];
+              if (cleanKey.includes('complex')) complexityVal = row[key];
+              if (cleanKey.includes('segmen')) segmentVal = row[key];
+              if (cleanKey === 'plan start' || cleanKey === 'plannedstart') planStartVal = row[key];
+              if (cleanKey === 'plan end' || cleanKey === 'plannedend') planEndVal = row[key];
+            });
+
+            return {
+              id: index,
+              category: String(phaseVal || 'Back End'),
+              title: String(taskVal || 'UAT'),
+              desc: String(remarkVal || 'Tidak ada catatan.'),
+              priority: String(complexityVal || 'High'),
+              segment: String(segmentVal || '-'),
+              planStart: String(planStartVal || '-'),
+              planEnd: String(planEndVal || '-'),
+              rawStatus: String(row.computedStatus || row['Status'] || '').toLowerCase()
+            };
+          });
+
+          const grouped = {
+            planning: mappedTasks.filter(t => t.rawStatus.includes('plan') || t.rawStatus.includes('to do')),
+            onProgress: mappedTasks.filter(t => t.rawStatus.includes('going') || t.rawStatus.includes('progress') || t.rawStatus.includes('due soon')),
+            delayed: mappedTasks.filter(t => t.rawStatus.includes('delay')),
+            done: mappedTasks.filter(t => t.rawStatus.includes('complet') || t.rawStatus.includes('done'))
+          };
+
+          setTasks(grouped);
+        }
+      } catch (err) {
+        console.error('Gagal memuat detail project:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjectDetails();
+  }, [project, projectName, onLogout]);
+
+  const handleOpenPopup = (task) => {
+    setPopupTask(task);
   };
 
   return (
     <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-      {/* Sidebar Area */}
       <aside className="sidebar">
         <div className="sidebar-top">
-          <div className="sidebar-logo-circle">
-            <span className="sidebar-logo-text">VANTAGE</span>
+          <div className="sidebar-top-row">
+            <div className="sidebar-logo-circle">
+              <span className="sidebar-logo-text">VANTAGE</span>
+            </div>
+            <button 
+              className="sidebar-collapse-btn-small" 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              aria-label="Toggle Sidebar"
+            >
+              {sidebarCollapsed ? <FiChevronsRight size={14} /> : <FiChevronsLeft size={14} />}
+            </button>
           </div>
           <hr className="sidebar-divider" />
         </div>
@@ -65,13 +154,9 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) 
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="detail-page-container">
-        {/* Header Top */}
         <header className="detail-top-header">
-          <button className="sidebar-toggle-btn" onClick={() => setSidebarCollapsed(!sidebarCollapsed)} aria-label="Toggle Sidebar">
-            {sidebarCollapsed ? <FiChevronsRight /> : <FiChevronsLeft />}
-          </button>
+          <div style={{ width: '0px' }}></div>
 
           <div className="detail-title-pill">
             <h1>DETAIL PROJECTS</h1>
@@ -88,75 +173,127 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) 
           </div>
         </header>
 
-        {/* Project Name Pill */}
-        <div className="project-name-banner">
+        <div 
+          className="project-name-banner" 
+          onClick={() => onNavigate && onNavigate('projects')}
+          title="Klik untuk kembali ke daftar proyek"
+          style={{ cursor: 'pointer' }}
+        >
           <h2>{projectName}</h2>
         </div>
 
-        {/* Sub Header PM */}
         <div className="pm-info-row">
           <span className="pm-label">PM</span>
           <span className="pm-name">{projectPM}</span>
         </div>
 
-        {/* Kanban Board Grid */}
         <section className="kanban-board-grid">
-          {/* Column 1: Planning */}
-          <div className="kanban-column">
-            <div className="column-header-pill">
-              <span className="status-tag yellow">Planning</span>
-              <span className="count-text">(4)</span>
-              <FiChevronDown className="dropdown-chevron" />
-            </div>
-            <div className="task-list">
-              <TaskCard task={dummyTask} />
-            </div>
-          </div>
+          {loading ? (
+             <p style={{marginLeft: '20px'}}>Memuat data detail project...</p>
+          ) : (
+            <>
+              <div className="kanban-column">
+                <div className="column-header-pill">
+                  <span className="status-tag yellow">Planning</span>
+                  <span className="count-text">({tasks.planning.length})</span>
+                  <FiChevronDown className="dropdown-chevron" />
+                </div>
+                <div className="task-list">
+                  {tasks.planning.map(task => (
+                    <TaskCard 
+                      key={task.id} 
+                      task={task} 
+                      onOpenPopup={() => handleOpenPopup(task)} 
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* Column 2: On Progress */}
-          <div className="kanban-column">
-            <div className="column-header-pill">
-              <span className="status-tag green">On Progress</span>
-              <span className="count-text">(4)</span>
-              <FiChevronDown className="dropdown-chevron" />
-            </div>
-            <div className="task-list">
-              <TaskCard task={dummyTask} />
-            </div>
-          </div>
+              <div className="kanban-column">
+                <div className="column-header-pill">
+                  <span className="status-tag green">On Progress</span>
+                  <span className="count-text">({tasks.onProgress.length})</span>
+                  <FiChevronDown className="dropdown-chevron" />
+                </div>
+                <div className="task-list">
+                  {tasks.onProgress.map(task => (
+                    <TaskCard 
+                      key={task.id} 
+                      task={task} 
+                      onOpenPopup={() => handleOpenPopup(task)} 
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* Column 3: Delayed */}
-          <div className="kanban-column">
-            <div className="column-header-pill">
-              <span className="status-tag red">Delayed</span>
-              <span className="count-text">(4)</span>
-              <FiChevronDown className="dropdown-chevron" />
-            </div>
-            <div className="task-list">
-              <TaskCard task={dummyTask} />
-              <TaskCard task={dummyTask} />
-            </div>
-          </div>
+              <div className="kanban-column">
+                <div className="column-header-pill">
+                  <span className="status-tag red">Delayed</span>
+                  <span className="count-text">({tasks.delayed.length})</span>
+                  <FiChevronDown className="dropdown-chevron" />
+                </div>
+                <div className="task-list">
+                  {tasks.delayed.map(task => (
+                    <TaskCard 
+                      key={task.id} 
+                      task={task} 
+                      onOpenPopup={() => handleOpenPopup(task)} 
+                    />
+                  ))}
+                </div>
+              </div>
 
-          {/* Column 4: Done */}
-          <div className="kanban-column">
-            <div className="column-header-pill">
-              <span className="status-tag blue">Done</span>
-              <span className="count-text">(4)</span>
-              <FiChevronDown className="dropdown-chevron" />
-            </div>
-            <div className="task-list">
-              <TaskCard task={dummyTask} />
-            </div>
-          </div>
+              <div className="kanban-column">
+                <div className="column-header-pill">
+                  <span className="status-tag blue">Done</span>
+                  <span className="count-text">({tasks.done.length})</span>
+                  <FiChevronDown className="dropdown-chevron" />
+                </div>
+                <div className="task-list">
+                  {tasks.done.map(task => (
+                    <TaskCard 
+                      key={task.id} 
+                      task={task} 
+                      onOpenPopup={() => handleOpenPopup(task)} 
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </section>
+
+        {popupTask && (
+          <div className="specs-modal-overlay" onClick={() => setPopupTask(null)}>
+            <div className="specs-modal-content" onClick={e => e.stopPropagation()}>
+              <div className="specs-modal-header">
+                <h3>{popupTask.title}</h3>
+                <button className="specs-modal-close-btn" onClick={() => setPopupTask(null)}>&times;</button>
+              </div>
+              <div className="specs-modal-body">
+                <strong>Task / Step:</strong> {popupTask.title}
+                <br /><br />
+                <strong>Remarks:</strong> {popupTask.desc}
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );
 };
 
-// Sub-component untuk Card Task
-const TaskCard = ({ task }) => {
+const getShortTitle = (title) => {
+  if (!title) return '';
+  const words = title.trim().split(/\s+/);
+  if (words.length <= 3) return title;
+  return words.slice(0, 3).join(' ') + '...';
+};
+
+const TaskCard = ({ task, onOpenPopup }) => {
+  const shortTitle = getShortTitle(task.title);
+
   return (
     <div className="kanban-task-card">
       <div className="task-card-top">
@@ -167,10 +304,17 @@ const TaskCard = ({ task }) => {
       <div className="task-card-body">
         <div className="red-accent-line"></div>
         <div className="task-main-content">
-          <h4 className="task-title">{task.title}</h4>
-          <p className="task-desc">
-            **{task.desc} <button className="view-specs-btn">View Specs</button>
-          </p>
+          <h4 className="task-title" title={task.title}>{shortTitle}</h4>
+          
+          <div className="task-desc-wrapper">
+            <p className="task-desc">
+              Remarks: {task.desc}
+            </p>
+          </div>
+
+          <button className="view-specs-btn" onClick={onOpenPopup}>
+            View Specs
+          </button>
         </div>
       </div>
 

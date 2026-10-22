@@ -1,22 +1,44 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import '../styles/Login.css';
 import { FiUser, FiLock, FiEyeOff, FiEye } from 'react-icons/fi';
 
-const Login = ({ onLoginSuccess }) => {
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+const Login = () => {
+    // State untuk fungsi autentikasi
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    
+    // State untuk fungsi mata (show/hide password) bawaan UI Anda
+    const [showPassword, setShowPassword] = useState(false);
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
+    const togglePasswordVisibility = () => {
+        setShowPassword(!showPassword);
+    };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (onLoginSuccess) {
-      onLoginSuccess();
-    }
-  };
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+
+        try {
+            const response = await axios.post('http://localhost:5000/api/auth/login', {
+                email,
+                password
+            });
+
+            if (response.data.success) {
+                // Simpan tiket token dan arahkan ke Dashboard
+                localStorage.setItem('vantage_token', response.data.token);
+                window.location.href = '/'; 
+            }
+        } catch (err) {
+            setError(err.response?.data?.message || 'Login gagal. Periksa email atau password Anda.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
   return (
     <div className="login-wrapper">
@@ -25,7 +47,12 @@ const Login = ({ onLoginSuccess }) => {
           <span className="logo-text">VANTAGE</span>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit}>
+        {/* Gunakan handleLogin untuk memicu API saat tombol ditekan */}
+        <form className="login-form" onSubmit={handleLogin}>
+          
+          {/* Menampilkan pesan error jika login ditolak API */}
+          {error && <p style={{ color: '#ff4d4f', textAlign: 'center', marginBottom: '15px', fontSize: '14px' }}>{error}</p>}
+
           <div className="input-field">
             <FiUser className="field-icon" />
             <input
@@ -60,8 +87,9 @@ const Login = ({ onLoginSuccess }) => {
             </button>
           </div>
 
-          <button type="submit" className="login-btn">
-            Login
+          {/* Tombol otomatis mati saat sedang loading memeriksa ke database */}
+          <button type="submit" className="login-btn" disabled={isLoading}>
+            {isLoading ? 'Memeriksa...' : 'Login'}
           </button>
         </form>
       </div>

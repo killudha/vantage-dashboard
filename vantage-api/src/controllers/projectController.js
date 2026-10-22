@@ -64,9 +64,26 @@ const getProjects = async (req, res) => {
         // Filter Rentang Tanggal
         if (startDate && endDate) {
             const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0); // Set ke jam 00:00:00
+            
             const end = new Date(endDate);
+            end.setHours(23, 59, 59, 999); // Set ke jam 23:59:59
+
             processedProjects = processedProjects.filter(p => {
-                const pEnd = new Date(p['Plan End']);
+                const planEndStr = p['Plan End'];
+                // Jika proyek tidak punya tanggal Plan End, jangan tampilkan di hasil filter
+                if (!planEndStr) return false; 
+
+                let pEnd;
+                // Terjemahkan format DD/MM/YYYY dari Google Sheets
+                if (planEndStr.includes('/')) {
+                    const parts = planEndStr.split('/');
+                    pEnd = new Date(parts[2], parts[1] - 1, parts[0]);
+                } else {
+                    pEnd = new Date(planEndStr);
+                }
+
+                // Cocokkan apakah tanggal Plan End berada di dalam rentang filter
                 return pEnd >= start && pEnd <= end;
             });
         }
