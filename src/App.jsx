@@ -5,28 +5,54 @@ import Dashboard from './components/Dashboard';
 import Project from './components/Project';
 import ProjectDetail from './components/ProjectDetail';
 
-// Komponen Gerbang Proteksi: Tolak user yang belum punya token
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('vantage_token');
   return token ? children : <Navigate to="/login" replace />;
 };
 
-// Komponen Gerbang Publik: Tolak user yang sudah login jika mau buka halaman /login
 const PublicRoute = ({ children }) => {
   const token = localStorage.getItem('vantage_token');
   return !token ? children : <Navigate to="/" replace />;
 };
 
-// Bungkus seluruh logika UI lama Anda ke dalam komponen MainContent
 const MainContent = () => {
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'projects', 'detail'
+  const [activeTab, setActiveTab] = useState('overview');
   const [selectedProject, setSelectedProject] = useState(null);
-  
-  // State Profile
-  const [userName, setUserName] = useState('ALDEBARA');
-  const [userAvatar, setUserAvatar] = useState('https://via.placeholder.com/40');
+  const [projectStatusFilter, setProjectStatusFilter] = useState('All Statuses');
 
-  // Perbaikan handleLogout: Hapus token dan tendang ke halaman login
+  // State Profile dengan penyimpanan otomatis ke LocalStorage
+  const [userName, setUserName] = useState(() => {
+    return localStorage.getItem('vantage_username') || 'ALDEBARA';
+  });
+  const [userAvatar, setUserAvatar] = useState(() => {
+    return localStorage.getItem('vantage_useravatar') || 'https://via.placeholder.com/40';
+  });
+
+  const handleUpdateProfile = (newName, newAvatar) => {
+    setUserName(newName);
+    setUserAvatar(newAvatar);
+    localStorage.setItem('vantage_username', newName);
+    localStorage.setItem('vantage_useravatar', newAvatar);
+  };
+
+  // Status Sidebar terpusat
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('vantage_sidebar_collapsed') === 'true';
+  });
+
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const nextState = !prev;
+      localStorage.setItem('vantage_sidebar_collapsed', nextState);
+      return nextState;
+    });
+  };
+
+  const handleNavigate = (tab, statusFilter = 'All Statuses') => {
+    setProjectStatusFilter(statusFilter);
+    setActiveTab(tab);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('vantage_token');
     window.location.href = '/login';
@@ -39,16 +65,17 @@ const MainContent = () => {
 
   return (
     <div className="app-main">
-      {activeTab === 'overview' && (
+      {(activeTab === 'overview' || activeTab === 'assistant') && (
         <Dashboard 
           onLogout={handleLogout} 
           activeTab={activeTab}
-          onNavigate={(tab) => setActiveTab(tab)}
+          onNavigate={handleNavigate}
           onSelectProject={handleSelectProject}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
           userName={userName}
-          setUserName={setUserName}
           userAvatar={userAvatar}
-          setUserAvatar={setUserAvatar}
+          onUpdateProfile={handleUpdateProfile}
         />
       )}
 
@@ -56,12 +83,14 @@ const MainContent = () => {
         <Project 
           onLogout={handleLogout} 
           activeTab={activeTab}
-          onNavigate={(tab) => setActiveTab(tab)}
+          onNavigate={handleNavigate}
           onSelectProject={handleSelectProject}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
+          initialStatusFilter={projectStatusFilter}
           userName={userName}
-          setUserName={setUserName}
           userAvatar={userAvatar}
-          setUserAvatar={setUserAvatar}
+          onUpdateProfile={handleUpdateProfile}
         />
       )}
 
@@ -69,39 +98,24 @@ const MainContent = () => {
         <ProjectDetail 
           onLogout={handleLogout} 
           activeTab={activeTab}
-          onNavigate={(tab) => setActiveTab(tab)}
+          onNavigate={handleNavigate}
           project={selectedProject}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
           userName={userName}
-          setUserName={setUserName}
           userAvatar={userAvatar}
-          setUserAvatar={setUserAvatar}
         />
       )}
     </div>
   );
 };
 
-// Komponen Utama App kini bertugas mengatur rute URL
 function App() {
   return (
     <Router>
       <Routes>
-        <Route 
-          path="/login" 
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } 
-        />
-        <Route 
-          path="/" 
-          element={
-            <PrivateRoute>
-              <MainContent />
-            </PrivateRoute>
-          } 
-        />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/" element={<PrivateRoute><MainContent /></PrivateRoute>} />
       </Routes>
     </Router>
   );

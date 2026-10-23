@@ -1,0 +1,193 @@
+/* Container Utama Halaman Chatbot */
+.chatbot-page-container {
+  flex: 1;
+  height: 100vh;
+  padding: 16px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background-color: #ffffff;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Header Banner VANTAGE ASSISTANT */
+.chatbot-top-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.chatbot-title-pill {
+  flex: 1;
+  max-width: 720px;
+  background-color: #496D89;
+  border-radius: 20px;
+  padding: 8px 0;
+  text-align: center;
+  margin: 0 20px;
+}
+
+.chatbot-title-pill h1 {
+  color: #000000;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  margin: 0;
+}
+
+.chatbot-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Card Utama Chatbot */
+.chatbot-card {
+  flex: 1;
+  width: 100%;
+  border: 2px solid #496D89;
+  border-radius: 12px;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 8px;
+}
+
+/* Header di Dalam Card Chatbot */
+.chatbot-card-header {
+  background-color: #496D89;
+  color: #ffffff;
+  padding: 12px 20px;
+  text-align: left;
+}
+
+.chatbot-card-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.chatbot-status-online {
+  font-size: 11px;
+  color: #22c55e;
+  font-weight: 700;
+  display: block;
+  margin-top: 2px;
+}
+
+/* Area Isi Pesan Chat */
+.chatbot-message-body {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Baris Pesan */
+.chat-message-row {
+  display: flex;
+  width: 100%;
+}
+
+.chat-message-row.user {
+  justify-content: flex-end;
+}
+
+.chat-message-row.bot {
+  justify-content: flex-start;
+}
+
+/* Bubble Chat Bot & User */
+.chat-bubble {
+  max-width: 50%;
+  padding: 14px 18px 24px 18px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  position: relative;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+.chat-bubble.bot {
+  background-color: #ebebeb;
+  color: #1f2937;
+  border-top-left-radius: 4px;
+}
+
+.chat-bubble.user {
+  background-color: #496D89;
+  color: #ffffff;
+  border-top-right-radius: 4px;
+}
+
+.chat-bubble p {
+  margin: 0;
+  font-size: 13.5px;
+  color: #222222;
+  text-align: left;
+}
+
+.chat-time {
+  font-size: 10px;
+  position: absolute;
+  bottom: 6px;
+  right: 14px;
+  color: #555555;
+  font-weight: 500;
+}
+
+.chat-bubble.user .chat-time {
+  color: #e2e8f0;
+}
+
+/* Input Bar Chatbot */
+.chatbot-input-area {
+  padding: 16px 24px;
+  background-color: #ffffff;
+}
+
+.chatbot-input-pill {
+  display: flex;
+  align-items: center;
+  background-color: #b0b7bd;
+  border-radius: 25px;
+  padding: 8px 18px;
+}
+
+.chatbot-input-pill input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.chatbot-input-pill input::placeholder {
+  color: #e5e7eb;
+}
+
+.chatbot-send-btn {
+  background: none;
+  border: none;
+  color: #1e293b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 8px;
+}
+
+.chatbot-send-btn:hover {
+  transform: scale(1.08);
+}

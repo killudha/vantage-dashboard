@@ -3,8 +3,9 @@ import axios from 'axios';
 import '../styles/Dashboard.css';
 import '../styles/Project.css';
 import { 
-  FiGrid,
-  FiFolder,
+  FiGrid, 
+  FiFolder, 
+  FiMessageSquare,
   FiBell, 
   FiSearch, 
   FiChevronsLeft,
@@ -16,8 +17,47 @@ import {
   FiRotateCcw
 } from 'react-icons/fi';
 
-const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject }) => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+const Project = ({ 
+  onLogout, 
+  activeTab = 'projects', 
+  onNavigate, 
+  onSelectProject,
+  sidebarCollapsed,
+  onToggleSidebar,
+  initialStatusFilter = 'All Statuses',
+  userName,
+  userAvatar,
+  onUpdateProfile
+}) => {
+  // State Modal Profile Edit
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [editName, setEditName] = useState(userName);
+  const [editAvatar, setEditAvatar] = useState(userAvatar);
+
+  useEffect(() => {
+    setEditName(userName);
+    setEditAvatar(userAvatar);
+  }, [userName, userAvatar]);
+
+  const handleAvatarFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditAvatar(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSaveProfile = (e) => {
+    e.preventDefault();
+    if (onUpdateProfile) {
+      onUpdateProfile(editName, editAvatar);
+    }
+    setIsProfileModalOpen(false);
+  };
+
   const [projects, setProjects] = useState([]);
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +72,12 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
 
   const [selectedPm, setSelectedPm] = useState('All PM');
   const [selectedPhase, setSelectedPhase] = useState('All Phases');
-  const [selectedStatus, setSelectedStatus] = useState('All Statuses');
-  
+  const [selectedStatus, setSelectedStatus] = useState(initialStatusFilter);
+
+  useEffect(() => {
+    setSelectedStatus(initialStatusFilter);
+  }, [initialStatusFilter]);
+
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,52 +89,52 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
       const token = localStorage.getItem('vantage_token');
       
       if (!token) {
-        if(onLogout) onLogout();
+        if (onLogout) onLogout();
         return;
       }
 
       try {
         const response = await axios.get('http://localhost:5000/api/projects', {
-            headers: { Authorization: `Bearer ${token}` }
+          headers: { Authorization: `Bearer ${token}` }
         });
 
         if (response.data.success) {
-            const rawData = response.data.data || [];
+          const rawData = response.data.data || [];
+          
+          const formattedData = rawData.map((row, index) => {
+            const pmVal = row['Project Manager'] || row['PM'] || row['PIC'] || row['pic'] || 'AL GANTENG';
+            const phaseVal = row['Phase'] || row['phase'] || 'Development';
+            const statusVal = row.computedStatus || row['Status'] || 'On Going';
             
-            const formattedData = rawData.map((row, index) => {
-              const pmVal = row['Project Manager'] || row['PM'] || row['PIC'] || row['pic'] || 'AL GANTENG';
-              const phaseVal = row['Phase'] || row['phase'] || 'Development';
-              const statusVal = row.computedStatus || row['Status'] || 'On Going';
-              
-              return {
-                id: index + 1,
-                projectName: String(row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney+'),
-                phase: String(phaseVal),
-                status: String(statusVal),
-                planStart: String(row['Plan Start'] || row['plannedStart'] || '-'),
-                planEnd: String(row['Plan End'] || row['plannedEnd'] || '-'),
-                actualStart: String(row['Actual Start'] || row['actualStart'] || '-'),
-                actualEnd: String(row['Actual End'] || row['actualEnd'] || '-'),
-                pm: String(pmVal),
-                rawData: row 
-              };
-            });
+            return {
+              id: index + 1,
+              projectName: String(row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney+'),
+              phase: String(phaseVal),
+              status: String(statusVal),
+              planStart: String(row['Plan Start'] || row['plannedStart'] || '-'),
+              planEnd: String(row['Plan End'] || row['plannedEnd'] || '-'),
+              actualStart: String(row['Actual Start'] || row['actualStart'] || '-'),
+              actualEnd: String(row['Actual End'] || row['actualEnd'] || '-'),
+              pm: String(pmVal),
+              rawData: row 
+            };
+          });
 
-            const uniquePms = Array.from(new Set(formattedData.map(item => item.pm))).filter(Boolean);
-            const uniquePhases = Array.from(new Set(formattedData.map(item => item.phase))).filter(Boolean);
-            const uniqueStatuses = Array.from(new Set(formattedData.map(item => item.status))).filter(Boolean);
+          const uniquePms = Array.from(new Set(formattedData.map(item => item.pm))).filter(Boolean);
+          const uniquePhases = Array.from(new Set(formattedData.map(item => item.phase))).filter(Boolean);
+          const uniqueStatuses = Array.from(new Set(formattedData.map(item => item.status))).filter(Boolean);
 
-            setPmList(uniquePms);
-            setPhaseList(uniquePhases);
-            setStatusList(uniqueStatuses);
+          setPmList(uniquePms);
+          setPhaseList(uniquePhases);
+          setStatusList(uniqueStatuses);
 
-            setProjects(formattedData);
-            setFilteredProjects(formattedData);
+          setProjects(formattedData);
+          setFilteredProjects(formattedData);
         }
       } catch (err) {
         console.error('Gagal memuat data dari Backend:', err);
         if (err.response?.status === 401 && onLogout) {
-            onLogout();
+          onLogout();
         }
       } finally {
         setLoading(false);
@@ -185,8 +229,40 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
     setIsFilterOpen(false);
   };
 
+  const getPaginationRange = () => {
+    const delta = 1;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = 1; i <= totalPages; i++) {
+      if (
+        i === 1 || 
+        i === totalPages || 
+        (i >= currentPage - delta && i <= currentPage + delta)
+      ) {
+        range.push(i);
+      }
+    }
+
+    let l;
+    for (let i of range) {
+      if (l) {
+        if (i - l === 2) {
+          rangeWithDots.push(l + 1);
+        } else if (i - l !== 1) {
+          rangeWithDots.push('...');
+        }
+      }
+      rangeWithDots.push(i);
+      l = i;
+    }
+
+    return rangeWithDots;
+  };
+
   return (
     <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* SIDEBAR NAVIGATION */}
       <aside className="sidebar">
         <div className="sidebar-top">
           <div className="sidebar-top-row">
@@ -195,7 +271,7 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
             </div>
             <button 
               className="sidebar-collapse-btn-small" 
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={onToggleSidebar}
               aria-label="Toggle Sidebar"
             >
               {sidebarCollapsed ? <FiChevronsRight size={14} /> : <FiChevronsLeft size={14} />}
@@ -212,12 +288,21 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
             <FiGrid className="menu-icon" />
             <span className="menu-text">Overview</span>
           </button>
+          
           <button 
             className={`menu-item ${activeTab === 'projects' || activeTab === 'detail' ? 'active' : ''}`}
-            onClick={() => onNavigate && onNavigate('projects')}
+            onClick={() => onNavigate && onNavigate('projects', 'All Statuses')}
           >
             <FiFolder className="menu-icon" />
             <span className="menu-text">Projects List</span>
+          </button>
+
+          <button 
+            className={`menu-item ${activeTab === 'assistant' ? 'active' : ''}`}
+            onClick={() => onNavigate && onNavigate('assistant')}
+          >
+            <FiMessageSquare className="menu-icon" />
+            <span className="menu-text">AI Assistant</span>
           </button>
         </nav>
 
@@ -238,12 +323,13 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
           </div>
 
           <div className="project-header-right">
-            <div className="notification-bell">
-              <FiBell className="bell-icon" />
-              <span className="bell-badge">8</span>
-            </div>
-            <div className="user-avatar">
-              <img src="https://via.placeholder.com/40" alt="User Profile" />
+            <div 
+              className="user-avatar" 
+              onClick={() => setIsProfileModalOpen(true)}
+              style={{ cursor: 'pointer' }}
+              title="Klik untuk Edit Profil"
+            >
+              <img src={userAvatar} alt="User Profile" />
             </div>
           </div>
         </header>
@@ -425,50 +511,20 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
             <FiChevronLeft />
           </button>
 
-          <button 
-            className={`page-num-btn ${currentPage === 1 ? 'active' : ''}`}
-            onClick={() => handlePageChange(1)}
-          >
-            1
-          </button>
-
-          {totalPages >= 2 && (
-            <button 
-              className={`page-num-btn ${currentPage === 2 ? 'active' : ''}`}
-              onClick={() => handlePageChange(2)}
-            >
-              2
-            </button>
-          )}
-
-          {totalPages >= 3 && (
-            <button 
-              className={`page-num-btn ${currentPage === 3 ? 'active' : ''}`}
-              onClick={() => handlePageChange(3)}
-            >
-              3
-            </button>
-          )}
-
-          {totalPages > 4 && <span className="pagination-dots">...</span>}
-
-          {totalPages > 3 && (
-            <button 
-              className={`page-num-btn ${currentPage === totalPages - 1 ? 'active' : ''}`}
-              onClick={() => handlePageChange(totalPages - 1)}
-            >
-              {totalPages - 1}
-            </button>
-          )}
-
-          {totalPages > 3 && (
-            <button 
-              className={`page-num-btn ${currentPage === totalPages ? 'active' : ''}`}
-              onClick={() => handlePageChange(totalPages)}
-            >
-              {totalPages}
-            </button>
-          )}
+          {getPaginationRange().map((page, idx) => {
+            if (page === '...') {
+              return <span key={`dots-${idx}`} className="pagination-dots">...</span>;
+            }
+            return (
+              <button 
+                key={page}
+                className={`page-num-btn ${currentPage === page ? 'active' : ''}`}
+                onClick={() => handlePageChange(page)}
+              >
+                {page}
+              </button>
+            );
+          })}
 
           <button 
             className="page-next-text" 
@@ -479,6 +535,113 @@ const Project = ({ onLogout, activeTab = 'projects', onNavigate, onSelectProject
           </button>
         </footer>
       </main>
+
+      {/* MODAL EDIT PROFIL */}
+      {isProfileModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          zIndex: 2000,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            padding: '24px',
+            borderRadius: '16px',
+            width: '320px',
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <h3 style={{ margin: 0, fontSize: '18px', color: '#002C4A', fontWeight: '800', textAlign: 'center' }}>
+              Edit Profil User
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+              <img 
+                src={editAvatar} 
+                alt="Preview" 
+                style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid #496D89' }} 
+              />
+              <label style={{
+                fontSize: '12px',
+                fontWeight: 'bold',
+                color: '#ffffff',
+                backgroundColor: '#496D89',
+                padding: '6px 14px',
+                borderRadius: '12px',
+                cursor: 'pointer'
+              }}>
+                Unggah Foto Baru
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleAvatarFileChange} 
+                  style={{ display: 'none' }} 
+                />
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', textAlign: 'left' }}>
+              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#4b5563' }}>Username</label>
+              <input 
+                type="text" 
+                value={editName} 
+                onChange={(e) => setEditName(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+              <button 
+                type="button" 
+                onClick={() => setIsProfileModalOpen(false)}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #d1d5db',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Batal
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSaveProfile}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#002C4A',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
