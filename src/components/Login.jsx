@@ -28,11 +28,15 @@ const Login = () => {
                 password
             });
 
-            if (response.data.success) {
-                // Simpan tiket token dan arahkan ke Dashboard
-                localStorage.setItem('vantage_token', response.data.token);
-                window.location.href = '/'; 
-            }
+            // src/components/Login.jsx (Di dalam fungsi handleLogin)
+
+              if (response.data.success) {
+                  localStorage.setItem('vantage_token', response.data.token);
+                  // Tambahkan baris ini untuk menyimpan username dari backend:
+                  localStorage.setItem('vantage_username', response.data.user.displayName);
+                  
+                  window.location.href = '/'; 
+              }
         } catch (err) {
             setError(err.response?.data?.message || 'Login gagal. Periksa email atau password Anda.');
         } finally {

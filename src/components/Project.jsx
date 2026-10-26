@@ -62,21 +62,39 @@ const Project = ({
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [dateStart, setDateStart] = useState('');
-  const [dateEnd, setDateEnd] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  // Ambil data filter dari Session Storage jika ada
+  const [dateStart, setDateStart] = useState(() => sessionStorage.getItem('vantage_startDate') || '');
+  const [dateEnd, setDateEnd] = useState(() => sessionStorage.getItem('vantage_endDate') || '');
+  const [searchQuery, setSearchQuery] = useState(() => sessionStorage.getItem('vantage_searchQuery') || '');
   
   const [pmList, setPmList] = useState([]);
   const [phaseList, setPhaseList] = useState([]);
-  const [statusList, setStatusList] = useState([]);
+  const statusList = ['Planning', 'On Going', 'Completed', 'Delayed', 'Due Soon'];
 
-  const [selectedPm, setSelectedPm] = useState('All PM');
-  const [selectedPhase, setSelectedPhase] = useState('All Phases');
-  const [selectedStatus, setSelectedStatus] = useState(initialStatusFilter);
+  const [selectedPm, setSelectedPm] = useState(() => sessionStorage.getItem('vantage_selectedPm') || 'All PM');
+  const [selectedPhase, setSelectedPhase] = useState(() => sessionStorage.getItem('vantage_selectedPhase') || 'All Phases');
+  const [selectedStatus, setSelectedStatus] = useState(() => {
+    // Jika ada klik navigasi spesifik dari Dashboard (misal klik "Delayed")
+    if (initialStatusFilter !== 'All Statuses') return initialStatusFilter;
+    return sessionStorage.getItem('vantage_selectedStatus') || 'All Statuses';
+  });
 
+  // Timpa filter status JIKA user masuk dari tombol klik indikator di Dashboard
   useEffect(() => {
-    setSelectedStatus(initialStatusFilter);
+    if (initialStatusFilter !== 'All Statuses') {
+      setSelectedStatus(initialStatusFilter);
+    }
   }, [initialStatusFilter]);
+
+  // Simpan setiap perubahan filter ke dalam Session Storage
+  useEffect(() => {
+    sessionStorage.setItem('vantage_startDate', dateStart);
+    sessionStorage.setItem('vantage_endDate', dateEnd);
+    sessionStorage.setItem('vantage_searchQuery', searchQuery);
+    sessionStorage.setItem('vantage_selectedPm', selectedPm);
+    sessionStorage.setItem('vantage_selectedPhase', selectedPhase);
+    sessionStorage.setItem('vantage_selectedStatus', selectedStatus);
+  }, [dateStart, dateEnd, searchQuery, selectedPm, selectedPhase, selectedStatus]);
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
@@ -104,13 +122,19 @@ const Project = ({
           const formattedData = rawData.map((row, index) => {
             const pmVal = row['Project Manager'] || row['PM'] || row['PIC'] || row['pic'] || 'AL GANTENG';
             const phaseVal = row['Phase'] || row['phase'] || 'Development';
-            const statusVal = row.computedStatus || row['Status'] || 'On Going';
+            const baseStatus = row.computedStatus || row['Status'] || 'On Going';
+            const condition = row.condition || 'On Track';
+            const statusVal = condition === 'On Track'
+              ? baseStatus
+              : `${baseStatus} (${condition})`;
             
             return {
               id: index + 1,
               projectName: String(row['Project Name'] || row['Title'] || row['Nama Project'] || 'Disney+'),
               phase: String(phaseVal),
               status: String(statusVal),
+              baseStatus: String(baseStatus),
+              condition: String(condition),
               planStart: String(row['Plan Start'] || row['plannedStart'] || '-'),
               planEnd: String(row['Plan End'] || row['plannedEnd'] || '-'),
               actualStart: String(row['Actual Start'] || row['actualStart'] || '-'),
@@ -122,11 +146,9 @@ const Project = ({
 
           const uniquePms = Array.from(new Set(formattedData.map(item => item.pm))).filter(Boolean);
           const uniquePhases = Array.from(new Set(formattedData.map(item => item.phase))).filter(Boolean);
-          const uniqueStatuses = Array.from(new Set(formattedData.map(item => item.status))).filter(Boolean);
 
           setPmList(uniquePms);
           setPhaseList(uniquePhases);
-          setStatusList(uniqueStatuses);
 
           setProjects(formattedData);
           setFilteredProjects(formattedData);
@@ -166,7 +188,14 @@ const Project = ({
     }
 
     if (selectedStatus !== 'All Statuses') {
-      result = result.filter(item => String(item.status).toLowerCase() === String(selectedStatus).toLowerCase());
+      const normalizedSelectedStatus = selectedStatus.toLowerCase();
+      if (normalizedSelectedStatus === 'delayed' || normalizedSelectedStatus === 'due soon') {
+        result = result.filter(item => item.condition.toLowerCase() === normalizedSelectedStatus);
+      } else if (normalizedSelectedStatus === 'on going') {
+        result = result.filter(item => ['on going', 'planning'].includes(item.baseStatus.toLowerCase()));
+      } else {
+        result = result.filter(item => item.baseStatus.toLowerCase() === normalizedSelectedStatus);
+      }
     }
 
     if (dateStart) {
@@ -227,6 +256,14 @@ const Project = ({
     setDateEnd('');
     setSearchQuery('');
     setIsFilterOpen(false);
+    
+    // Bersihkan sesi
+    sessionStorage.removeItem('vantage_startDate');
+    sessionStorage.removeItem('vantage_endDate');
+    sessionStorage.removeItem('vantage_searchQuery');
+    sessionStorage.removeItem('vantage_selectedPm');
+    sessionStorage.removeItem('vantage_selectedPhase');
+    sessionStorage.removeItem('vantage_selectedStatus');
   };
 
   const getPaginationRange = () => {

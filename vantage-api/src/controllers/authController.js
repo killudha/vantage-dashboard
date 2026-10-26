@@ -8,23 +8,41 @@ const loginUser = async (req, res) => {
     }
 
     try {
+        // 1. Autentikasi User[cite: 11]
         const { data, error } = await supabase.auth.signInWithPassword({
             email: email,
             password: password,
         });
 
         if (error) {
-            // Error 401 berarti kredensial salah
             return res.status(401).json({ success: false, message: error.message });
         }
 
-        // Supabase mengembalikan object 'session' yang berisi access_token (JWT)
+        // 2. Ambil Displayname dari tabel 'users'
+        let displayName = email.split('@')[0]; // Fallback bawaan
+        
+        try {
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('displayname')
+                .eq('email', email)
+                .single();
+                
+            if (userData && userData.displayname) {
+                displayName = userData.displayname;
+            }
+        } catch (dbErr) {
+            console.error("Gagal mengambil displayname:", dbErr);
+            // Abaikan error agar user tetap bisa login dengan fallback email
+        }
+
         res.status(200).json({
             success: true,
             message: 'Otentikasi berhasil',
             user: {
                 id: data.user.id,
-                email: data.user.email
+                email: data.user.email,
+                displayName: displayName // <-- Nama dari database dikirim ke frontend
             },
             token: data.session.access_token 
         });

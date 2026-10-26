@@ -70,11 +70,18 @@ const Dashboard = ({
   const [nonCommercialProjects, setNonCommercialProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // State filter priority & tanggal
+  // State filter priority & tanggal (Terikat dengan Session Storage)
   const [commFilter, setCommFilter] = useState('all');
   const [nonCommFilter, setNonCommFilter] = useState('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  const [startDate, setStartDate] = useState(() => sessionStorage.getItem('vantage_startDate') || '');
+  const [endDate, setEndDate] = useState(() => sessionStorage.getItem('vantage_endDate') || '');
+
+  // Efek untuk menyimpan perubahan tanggal ke Session Storage secara real-time
+  useEffect(() => {
+    sessionStorage.setItem('vantage_startDate', startDate);
+    sessionStorage.setItem('vantage_endDate', endDate);
+  }, [startDate, endDate]);
 
   // State Notifikasi
   const [showNotifications, setShowNotifications] = useState(false);
@@ -224,25 +231,24 @@ const Dashboard = ({
           const rawData = response.data.data || [];
           
           const formattedData = rawData.map((row, index) => {
-            const computed = row.computedStatus || row['Status'] || 'On Going';
-            const computedLower = String(computed).toLowerCase();
+            const displayStatus = row.computedStatus || row['Status'] || 'On Going';
+            const normalizedStatus = String(displayStatus).toLowerCase();
+            const condition = String(row.condition || 'On Track').toLowerCase();
             
             let statusType = 'ongoing-yellow'; 
-            let displayStatus = computed;
             let dueText = null;
             const daysRem = row.daysRemaining !== undefined ? Number(row.daysRemaining) : null;
 
-            if (computedLower === 'delayed') {
-              statusType = 'delayed';
-              displayStatus = 'On Going'; 
-              dueText = (daysRem !== null && daysRem < 0) ? `Delayed for ${Math.abs(daysRem)} days` : 'Delayed';
-            } else if (computedLower === 'completed') {
+            if (normalizedStatus === 'completed') {
               statusType = 'completed';
-            } else if (computedLower === 'due soon' || computedLower === 'on going') {
-              if (daysRem !== null && daysRem >= 0 && daysRem <= 10) {
-                dueText = `${daysRem} Days Remaining`;
-                if (computedLower === 'due soon') statusType = 'ongoing-orange';
-              }
+            } else if (condition === 'delayed') {
+              statusType = 'delayed';
+              dueText = (daysRem !== null && daysRem < 0) ? `Delayed for ${Math.abs(daysRem)} days` : 'Delayed';
+            } else if (condition === 'due soon') {
+              statusType = 'ongoing-orange';
+              dueText = daysRem !== null && daysRem >= 0
+                ? `${daysRem} Days Remaining`
+                : 'Due Soon';
             }
 
             const commColValue = String(
