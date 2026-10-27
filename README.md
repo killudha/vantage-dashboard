@@ -1,16 +1,96 @@
-# React + Vite
+# 🚀 Vantage Project Management Dashboard & API
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Vantage is a modern project management dashboard built with **React** (frontend) and **Node.js** (backend).
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Real-time project tracking
+- Kanban boards
+- Filtering capabilities
+- Integrated AI Assistant (powered by Groq)
+- Detailed spec views
 
-## React Compiler
+## 🧰 Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Layer          | Technology        |
+| -------------- | ----------------- |
+| Frontend       | React             |
+| Backend        | Node.js           |
+| Authentication | Supabase          |
+| AI Assistant   | Groq API          |
 
-## Expanding the Oxlint configuration
+## 📁 Project Structure
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```
+.
+├── vantage-dashboard/   # Frontend (React)
+└── vantage-api/         # Backend (Node.js)
+```
+
+## 🛠️ Prerequisites
+
+Make sure you have the following installed on your local machine:
+
+- [Node.js](https://nodejs.org/) (LTS version recommended)
+- [Git](https://git-scm.com/)
+
+## 📦 Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/<your-username>/<your-repo-name>.git
+cd <your-repo-name>
+```
+
+## ⚙️ Environment Variables
+
+To make all backend features work (including Authentication and the AI Assistant), create a `.env` file inside the `vantage-api` folder:
+
+```env
+PORT=5000
+
+# Supabase credentials for authentication
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_anon_key
+
+# Groq API key for Vantage Assistant
+GROQ_API_KEY=your_groq_api_key
+```
+
+> ⚠️ Never commit your `.env` file. Make sure it is listed in `.gitignore`.
+
+## ▶️ Running the Project
+
+The frontend and backend run separately, so you will need **two terminal windows**.
+
+### 1. Backend (`vantage-api`)
+
+```bash
+cd vantage-api
+npm install
+npx nodemon server.js
+```
+
+The API will run on `http://localhost:5000` (or the `PORT` you set in `.env`).
+
+### 2. Frontend (`vantage-dashboard`)
+
+```bash
+cd vantage-dashboard
+npm install
+npm run dev
+```
+
+Then open the local URL shown in your terminal.
+
+## 🔑 Default Credentials (Development Only)
+
+Use the following account to log in during development and testing:
+
+| Field    | Value             |
+| -------- | ----------------- |
+| Username | `admin@gmail.com` |
+| Password | `123456789`       |
+
+> ⚠️ These credentials are for local development only. Do not use them in production.
