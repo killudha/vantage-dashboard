@@ -70,18 +70,11 @@ const Dashboard = ({
   const [nonCommercialProjects, setNonCommercialProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // State filter priority & tanggal (Terikat dengan Session Storage)
+  // State filter priority & tanggal
   const [commFilter, setCommFilter] = useState('all');
   const [nonCommFilter, setNonCommFilter] = useState('all');
-  
-  const [startDate, setStartDate] = useState(() => sessionStorage.getItem('vantage_startDate') || '');
-  const [endDate, setEndDate] = useState(() => sessionStorage.getItem('vantage_endDate') || '');
-
-  // Efek untuk menyimpan perubahan tanggal ke Session Storage secara real-time
-  useEffect(() => {
-    sessionStorage.setItem('vantage_startDate', startDate);
-    sessionStorage.setItem('vantage_endDate', endDate);
-  }, [startDate, endDate]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   // State Notifikasi
   const [showNotifications, setShowNotifications] = useState(false);
@@ -109,6 +102,7 @@ const Dashboard = ({
   });
 
   const [chatInput, setChatInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -119,7 +113,7 @@ const Dashboard = ({
     if (activeTab === 'assistant' && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatMessages, activeTab]);
+  }, [chatMessages, isTyping, activeTab]);
 
   const handleClearChat = () => {
     if (window.confirm('Yakin mau menghapus seluruh riwayat chat?')) {
@@ -128,76 +122,57 @@ const Dashboard = ({
     }
   };
 
-  const allProjects = [
-    ...(commercialProjects || []).map((p) => ({ ...p, category: 'Commercial' })),
-    ...(nonCommercialProjects || []).map((p) => ({ ...p, category: 'Non-Commercial' }))
-  ];
+  // Fungsi Kirim Pesan via API Gemini Backend
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || isTyping) return;
 
-  const generateBotReply = (query) => {
-    const q = String(query || '').toLowerCase().trim();
-
-    const greetings = ['woy', 'hai', 'halo', 'p', 'ping', 'tes', 'pagi', 'siang', 'sore', 'malam', 'hey'];
-    if (greetings.some((word) => q === word || q.startsWith(word + ' '))) {
-      return `Halo! Ada yang bisa saya bantu?\n\nKamu bisa ketik "daftar proyek" untuk melihat semua proyek yang ada di website, atau langsung ketik nama proyeknya.`;
-    }
-
-    if (q.includes('daftar') || q.includes('semua proyek') || q.includes('list project') || q.includes('ada proyek apa')) {
-      if (allProjects.length === 0) return 'Saat ini belum ada data proyek yang terdaftar di dalam sistem.';
-      
-      const projectList = allProjects
-        .map((p, idx) => `${idx + 1}. ${p.title || p.projectName || 'Tanpa Nama'} (${p.category}) - [${p.status || 'On Going'}]`)
-        .join('\n');
-
-      return `Daftar seluruh proyek di Vantage:\n\n${projectList}\n\nKetik nama proyek untuk melihat detail lengkapnya!`;
-    }
-
-    if (q.includes('delayed') || q.includes('terlambat') || q.includes('delay')) {
-      const delayed = allProjects.filter((p) => (p.status || '').toLowerCase().includes('delay'));
-      if (delayed.length === 0) return 'Tidak ada proyek yang delayed saat ini. Semua berjalan tepat waktu!';
-      
-      const list = delayed.map((p) => `• ${p.title || p.projectName} (${p.category}) - ${p.priority || '-'}`).join('\n');
-      return `Terdapat ${delayed.length} proyek berstatus Delayed:\n${list}`;
-    }
-
-    const matchedProject = allProjects.find((p) => {
-      const pName = String(p.title || p.projectName || '').toLowerCase();
-      return pName && (q.includes(pName) || pName.includes(q));
-    });
-
-    if (matchedProject) {
-      return `📌 Detail Proyek "${matchedProject.title || matchedProject.projectName}":\n• Kategori: ${matchedProject.category}\n• Status: ${matchedProject.status || 'On Going'}\n• Prioritas: ${matchedProject.priority || '-'}\n• Planned End: ${matchedProject.plannedEnd || matchedProject.due || '-'}\n• PM: ${matchedProject.pm || 'Belum diatur'}`;
-    }
-
-    const availableNames = Array.from(new Set(allProjects.map((p) => p.title || p.projectName).filter(Boolean))).join(', ');
-    return `Maaf, kata kunci "${query}" tidak ditemukan.\n\nCoba ketik nama proyek yang ada seperti: ${availableNames || 'Disney+'}, atau ketik "daftar proyek".`;
-  };
-
-  const handleSendChatMessage = () => {
-    if (!chatInput.trim()) return;
-
+    const userQuery = chatInput;
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
 
     const userMsg = {
       id: Date.now(),
       sender: 'user',
-      text: chatInput,
+      text: userQuery,
       time: currentTime
     };
 
     setChatMessages((prev) => [...prev, userMsg]);
-    const userQuery = chatInput;
     setChatInput('');
+    setIsTyping(true);
 
-    setTimeout(() => {
-      const botReply = generateBotReply(userQuery);
+    try {
+      const token = localStorage.getItem('vantage_token');
+      
+      const response = await axios.post(
+        'http://localhost:5000/api/chat',
+        { message: userQuery },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      const botReplyText = response.data?.reply || 'Tidak ada respon dari AI.';
+
       const botMsg = {
         id: Date.now() + 1,
         sender: 'bot',
-        text: botReply,
+        text: botReplyText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.')
       };
+
       setChatMessages((prev) => [...prev, botMsg]);
-    }, 400);
+    } catch (error) {
+      console.error('Error memanggil API Chat:', error);
+      
+      const errorMsg = {
+        id: Date.now() + 1,
+        sender: 'bot',
+        text: 'Maaf, gagal terhubung ke server AI. Pastikan server backend kamu (node server.js) sudah menyala.',
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.')
+      };
+      
+      setChatMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const getGreeting = () => {
@@ -231,24 +206,25 @@ const Dashboard = ({
           const rawData = response.data.data || [];
           
           const formattedData = rawData.map((row, index) => {
-            const displayStatus = row.computedStatus || row['Status'] || 'On Going';
-            const normalizedStatus = String(displayStatus).toLowerCase();
-            const condition = String(row.condition || 'On Track').toLowerCase();
+            const computed = row.computedStatus || row['Status'] || 'On Going';
+            const computedLower = String(computed).toLowerCase();
             
             let statusType = 'ongoing-yellow'; 
+            let displayStatus = computed;
             let dueText = null;
             const daysRem = row.daysRemaining !== undefined ? Number(row.daysRemaining) : null;
 
-            if (normalizedStatus === 'completed') {
-              statusType = 'completed';
-            } else if (condition === 'delayed') {
+            if (computedLower === 'delayed') {
               statusType = 'delayed';
+              displayStatus = 'On Going'; 
               dueText = (daysRem !== null && daysRem < 0) ? `Delayed for ${Math.abs(daysRem)} days` : 'Delayed';
-            } else if (condition === 'due soon') {
-              statusType = 'ongoing-orange';
-              dueText = daysRem !== null && daysRem >= 0
-                ? `${daysRem} Days Remaining`
-                : 'Due Soon';
+            } else if (computedLower === 'completed') {
+              statusType = 'completed';
+            } else if (computedLower === 'due soon' || computedLower === 'on going') {
+              if (daysRem !== null && daysRem >= 0 && daysRem <= 10) {
+                dueText = `${daysRem} Days Remaining`;
+                if (computedLower === 'due soon') statusType = 'ongoing-orange';
+              }
             }
 
             const commColValue = String(
@@ -442,6 +418,15 @@ const Dashboard = ({
                   </div>
                 </div>
               ))}
+
+              {isTyping && (
+                <div className="chat-message-row bot">
+                  <div className="chat-bubble bot">
+                    <p style={{ fontStyle: 'italic', color: '#666' }}>Vantage Assistant sedang mengetik...</p>
+                  </div>
+                </div>
+              )}
+
               <div ref={chatEndRef} />
             </div>
 
