@@ -5,14 +5,15 @@ import '../styles/ProjectDetail.css';
 import { 
   FiGrid,
   FiFolder,
-  FiBell, 
+  FiMessageSquare,
+  FiArrowLeft,
   FiChevronsLeft,
   FiChevronsRight,
   FiChevronDown,
   FiLogOut
 } from 'react-icons/fi';
 
-const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) => {
+const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, onBack, project }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -110,6 +111,11 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) 
     setPopupTask(task);
   };
 
+  const handleBack = () => {
+    if (onBack) onBack();
+    else if (onNavigate) onNavigate('projects');
+  };
+
   return (
     <div className={`dashboard-container ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
       <aside className="sidebar">
@@ -144,6 +150,13 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) 
             <FiFolder className="menu-icon" />
             <span className="menu-text">Projects List</span>
           </button>
+          <button 
+            className={`menu-item ${activeTab === 'assistant' ? 'active' : ''}`}
+            onClick={() => onNavigate && onNavigate('assistant')}
+          >
+            <FiMessageSquare className="menu-icon" />
+            <span className="menu-text">AI Assistant</span>
+          </button>
         </nav>
 
         <div className="sidebar-bottom">
@@ -156,17 +169,21 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, project }) 
 
       <main className="detail-page-container">
         <header className="detail-top-header">
-          <div style={{ width: '0px' }}></div>
+          <button 
+            type="button"
+            className="detail-back-btn"
+            onClick={handleBack}
+            title="Kembali"
+            aria-label="Kembali ke halaman sebelumnya"
+          >
+            <FiArrowLeft size={20} />
+          </button>
 
           <div className="detail-title-pill">
             <h1>DETAIL PROJECTS</h1>
           </div>
 
           <div className="detail-header-right">
-            <div className="notification-bell">
-              <FiBell className="bell-icon" />
-              <span className="bell-badge">8</span>
-            </div>
             <div className="user-avatar">
               <img src="https://via.placeholder.com/40" alt="User Profile" />
             </div>

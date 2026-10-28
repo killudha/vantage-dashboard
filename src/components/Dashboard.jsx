@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import '../styles/Dashboard.css';
+import '../styles/Chatbotanimations.css';
+import { RevealText, TypingDots } from './ChatParts';
 import { 
   FiGrid, 
   FiFolder, 
@@ -24,6 +26,10 @@ const DEFAULT_CHAT = [
     time: '15.30'
   }
 ];
+
+const OPEN_INTENT = /\b(buka|open|masuk ke|pergi ke|go to)\b/i;
+const normalizeProjectName = (name) => String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const revealDuration = (text) => Math.min(900, Math.max(350, text.length * 10));
 
 const Dashboard = ({ 
   onLogout, 
@@ -103,7 +109,28 @@ const Dashboard = ({
 
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [sendAnimating, setSendAnimating] = useState(false);
+  const [allProjects, setAllProjects] = useState([]);
+  const [newMessageIds, setNewMessageIds] = useState(() => new Set());
   const chatEndRef = useRef(null);
+  const sendTimer = useRef(null);
+  const navigationTimers = useRef(new Set());
+
+  const projectByName = new Map(
+    allProjects.map((project) => [normalizeProjectName(project.projectName), project])
+  );
+  const scheduleNavigation = (project) => {
+    const timerId = setTimeout(() => {
+      navigationTimers.current.delete(timerId);
+      if (onSelectProject) onSelectProject(project);
+    }, 1100);
+    navigationTimers.current.add(timerId);
+  };
+
+  useEffect(() => () => {
+    if (sendTimer.current) clearTimeout(sendTimer.current);
+    navigationTimers.current.forEach((timerId) => clearTimeout(timerId));
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('vantage_chat_history', JSON.stringify(chatMessages));
@@ -123,22 +150,43 @@ const Dashboard = ({
   };
 
   // Fungsi Kirim Pesan via API Gemini Backend
-  const handleSendChatMessage = async () => {
-    if (!chatInput.trim() || isTyping) return;
+  const handleSendChatMessage = async (text = chatInput) => {
+    if (!text.trim() || isTyping) return;
 
-    const userQuery = chatInput;
+    const userQuery = text.trim();
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.');
+    const userMessageId = Date.now();
 
     const userMsg = {
-      id: Date.now(),
+      id: userMessageId,
       sender: 'user',
       text: userQuery,
       time: currentTime
     };
 
+    setNewMessageIds((previous) => new Set(previous).add(userMessageId));
     setChatMessages((prev) => [...prev, userMsg]);
     setChatInput('');
     setIsTyping(true);
+    if (sendTimer.current) clearTimeout(sendTimer.current);
+    setSendAnimating(true);
+    sendTimer.current = setTimeout(() => setSendAnimating(false), 600);
+
+    const normalizedQuery = normalizeProjectName(userQuery);
+    const mentionedProjects = allProjects
+      .filter((project) => {
+        const name = normalizeProjectName(project.projectName);
+        return name.length >= 3 && normalizedQuery.includes(name);
+      })
+      .sort((a, b) => normalizeProjectName(b.projectName).length - normalizeProjectName(a.projectName).length)
+      .filter((project, index, matches) => {
+        const name = normalizeProjectName(project.projectName);
+        return !matches.some((other, otherIndex) =>
+          otherIndex < index && normalizeProjectName(other.projectName).includes(name)
+        );
+      })
+      .slice(0, 4);
+    const shouldAutoOpen = OPEN_INTENT.test(userQuery) && mentionedProjects.length === 1;
 
     try {
       const token = localStorage.getItem('vantage_token');
@@ -150,30 +198,41 @@ const Dashboard = ({
       );
 
       const botReplyText = response.data?.reply || 'Tidak ada respon dari AI.';
+      const botMessageId = userMessageId + 1;
 
       const botMsg = {
-        id: Date.now() + 1,
+        id: botMessageId,
         sender: 'bot',
         text: botReplyText,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.')
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.'),
+        ...(mentionedProjects.length > 0 && {
+          projectNames: mentionedProjects.map((project) => String(project.projectName).trim())
+        })
       };
 
+      setNewMessageIds((previous) => new Set(previous).add(botMessageId));
       setChatMessages((prev) => [...prev, botMsg]);
+      if (shouldAutoOpen) scheduleNavigation(mentionedProjects[0]);
     } catch (error) {
       console.error('Error memanggil API Chat:', error);
       
       const errorMsg = {
-        id: Date.now() + 1,
+        id: userMessageId + 1,
         sender: 'bot',
         text: 'Maaf, gagal terhubung ke server AI. Pastikan server backend kamu (node server.js) sudah menyala.',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).replace(':', '.')
       };
       
+      setNewMessageIds((previous) => new Set(previous).add(errorMsg.id));
       setChatMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsTyping(false);
     }
   };
+
+  const scrollWhileRevealing = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ block: 'end' });
+  }, []);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -251,6 +310,15 @@ const Dashboard = ({
               rawData: row
             };
           });
+
+          const uniqueProjects = new Map();
+          formattedData.forEach((project) => {
+            const projectKey = normalizeProjectName(project.projectName);
+            if (projectKey && !uniqueProjects.has(projectKey)) {
+              uniqueProjects.set(projectKey, project);
+            }
+          });
+          setAllProjects(Array.from(uniqueProjects.values()));
 
           if (response.data.metrics) {
             setStatsCount({
@@ -410,20 +478,75 @@ const Dashboard = ({
             </div>
 
             <div className="chatbot-message-body">
-              {chatMessages.map((msg) => (
-                <div key={msg.id} className={`chat-message-row ${msg.sender}`}>
-                  <div className={`chat-bubble ${msg.sender}`}>
-                    <p>{msg.text}</p>
-                    <span className="chat-time">{msg.time}</span>
+              {chatMessages.map((msg) => {
+                const isNew = newMessageIds.has(msg.id);
+                const isBot = msg.sender === 'bot';
+                const projects = (msg.projectNames || [])
+                  .map((name) => projectByName.get(normalizeProjectName(name)))
+                  .filter(Boolean);
+
+                return (
+                  <div key={msg.id} className={`chat-message-row ${msg.sender}`}>
+                    <div className={`chat-bubble ${msg.sender}${isNew ? ' vantage-anim' : ''}`}>
+                      <p>
+                        {isBot ? (
+                          <RevealText text={msg.text} animate={isNew} onProgress={scrollWhileRevealing} />
+                        ) : (
+                          msg.text
+                        )}
+                      </p>
+
+                      {isBot && onSelectProject && projects.length > 0 && (
+                        <div
+                          className="vantage-actions"
+                          style={isNew ? { animationDelay: `${revealDuration(msg.text) + 100}ms` } : undefined}
+                        >
+                          {projects.map((project) => (
+                            <button
+                              key={normalizeProjectName(project.projectName)}
+                              type="button"
+                              className="vantage-open-btn"
+                              onClick={() => onSelectProject(project)}
+                            >
+                              Buka detail: {project.projectName}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <span className="chat-time">{msg.time}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {isTyping && (
                 <div className="chat-message-row bot">
-                  <div className="chat-bubble bot">
-                    <p style={{ fontStyle: 'italic', color: '#666' }}>Vantage Assistant sedang mengetik...</p>
+                  <div className="chat-bubble bot vantage-anim">
+                    <TypingDots />
                   </div>
+                </div>
+              )}
+
+              {chatMessages.length === 1 && !isTyping && (
+                <div className="vantage-chips">
+                  {[
+                    'Daftar proyek',
+                    'Proyek yang delayed',
+                    ...(allProjects[0]
+                      ? [`Tampilkan ${allProjects[0].projectName}`]
+                      : [])
+                  ].map((suggestion, index) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      className="vantage-chip"
+                      style={{ animationDelay: `${index * 80}ms` }}
+                      onClick={() => handleSendChatMessage(suggestion)}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -439,7 +562,10 @@ const Dashboard = ({
                   onChange={(e) => setChatInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendChatMessage()}
                 />
-                <button className="chatbot-send-btn" onClick={handleSendChatMessage}>
+                <button
+                  className={`chatbot-send-btn${sendAnimating ? ' is-sending' : ''}`}
+                  onClick={() => handleSendChatMessage()}
+                >
                   <FiSend size={18} />
                 </button>
               </div>

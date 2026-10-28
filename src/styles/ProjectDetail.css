@@ -48,6 +48,35 @@
   gap: 16px;
 }
 
+/* Tombol kembali di pojok kiri atas */
+.detail-back-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background-color: #496D89;
+  color: #000000;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.15s;
+}
+
+.detail-back-btn:hover {
+  background-color: #5b7b93;
+}
+
+.detail-back-btn:active {
+  transform: scale(0.94);
+}
+
+.detail-back-btn:focus-visible {
+  outline: 2px solid #496D89;
+  outline-offset: 2px;
+}
+
 /* Tombol Collapse kecil di pojok kanan atas sidebar */
 .sidebar-collapse-btn-small {
   position: absolute;

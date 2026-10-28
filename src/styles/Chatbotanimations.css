@@ -1,0 +1,171 @@
+/* ==========================================================
+   ChatbotAnimations.css
+   Ditambahkan DI SAMPING ChatbotWidget.css, tidak menggantikannya.
+   Hanya berisi animasi dan 3 elemen kecil baru (typing dots,
+   chip saran, tombol buka detail). Warna memakai palet yang
+   sudah ada di aplikasi (#002C4A dan #496D89).
+   Class lama (.chat-bubble, .chat-message-row, .chatbot-send-btn)
+   tidak diubah ukuran, warna, atau posisinya.
+   ========================================================== */
+
+:root {
+  --vantage-accent: #002c4a;
+  --vantage-accent-soft: #496d89;
+}
+
+/* ---------- 1. Pesan masuk: user dari kanan, bot dari kiri ---------- */
+
+@keyframes vantage-msg-in-right {
+  from { opacity: 0; transform: translateX(18px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes vantage-msg-in-left {
+  from { opacity: 0; transform: translateX(-18px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.chat-bubble.vantage-anim.user {
+  transform-origin: right bottom;
+  animation: vantage-msg-in-right 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.chat-bubble.vantage-anim.bot {
+  transform-origin: left bottom;
+  animation: vantage-msg-in-left 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* ---------- 2. Indikator "sedang mengetik" ---------- */
+
+.vantage-typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 2px;
+}
+
+.vantage-typing-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: vantage-dot 1.1s infinite ease-in-out;
+}
+
+.vantage-typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+.vantage-typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes vantage-dot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30%           { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ---------- 3. Tombol kirim: ikon "terbang" saat ditekan ---------- */
+
+@keyframes vantage-send-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+
+@keyframes vantage-send-fly {
+  0%   { transform: translate(0, 0); opacity: 1; }
+  45%  { transform: translate(22px, -22px); opacity: 0; }
+  46%  { transform: translate(-22px, 22px); opacity: 0; }
+  100% { transform: translate(0, 0); opacity: 1; }
+}
+
+.chatbot-send-btn.is-sending {
+  overflow: hidden;
+  animation: vantage-send-pop 0.45s ease;
+}
+
+.chatbot-send-btn.is-sending svg {
+  animation: vantage-send-fly 0.55s ease;
+}
+
+/* ---------- 4. Chip saran (hanya muncul di awal percakapan) ---------- */
+
+@keyframes vantage-rise-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.vantage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.vantage-chip {
+  border: 1px solid var(--vantage-accent-soft);
+  background: #fff;
+  color: var(--vantage-accent);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  animation: vantage-rise-in 0.35s ease backwards;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.vantage-chip:hover {
+  background: var(--vantage-accent);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* ---------- 5. Tombol "Buka detail" di dalam balasan bot ---------- */
+
+.vantage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+  animation: vantage-rise-in 0.35s ease backwards;
+}
+
+.vantage-open-btn {
+  max-width: 100%;
+  border: 1px solid var(--vantage-accent-soft);
+  background: #fff;
+  color: var(--vantage-accent);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.vantage-open-btn:hover {
+  background: var(--vantage-accent);
+  color: #fff;
+}
+
+.vantage-chip:focus-visible,
+.vantage-open-btn:focus-visible {
+  outline: 2px solid var(--vantage-accent-soft);
+  outline-offset: 2px;
+}
+
+/* ---------- Hormati pengaturan "reduce motion" ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble.vantage-anim,
+  .vantage-typing-dots span,
+  .vantage-chip,
+  .vantage-actions,
+  .chatbot-send-btn.is-sending,
+  .chatbot-send-btn.is-sending svg {
+    animation: none !important;
+  }
+}

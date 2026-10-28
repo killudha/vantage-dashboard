@@ -904,3 +904,252 @@ html, body, #root {
 .chatbot-send-btn:hover {
   transform: scale(1.08);
 }
+
+
+/* ========================================================
+   MOBILE RESPONSIVE CSS (Tampilan HP) - Maksimal lebar 768px
+   ======================================================== */
+@media screen and (max-width: 768px) {
+
+  /* 1. UBAH LAYOUT JADI BOTTOM NAVIGATION APP-LIKE */
+  .dashboard-container {
+    flex-direction: column;
+  }
+
+  /* Sidebar disulap menjadi Menu Bawah (Bottom Nav) */
+  .sidebar,
+  .dashboard-container.sidebar-collapsed .sidebar {
+    order: 2; /* Taruh di paling bawah */
+    width: 100% !important;
+    height: 65px !important;
+    flex-direction: row !important;
+    padding: 0 10px !important;
+    align-items: center;
+    background-color: #002C4A; /* Warna gelap elegan */
+    z-index: 9999;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.15);
+  }
+
+  .sidebar-top,
+  .sidebar-divider {
+    display: none !important; /* Sembunyikan Logo & Tombol Toggle di HP */
+  }
+
+  .sidebar-menu,
+  .dashboard-container.sidebar-collapsed .sidebar-menu {
+    flex-direction: row !important;
+    margin: 0 !important;
+    height: 100%;
+    width: 100%;
+    flex: 1;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  /* Modifikasi item menu agar ikon di atas dan teks kecil di bawah */
+  .menu-item,
+  .dashboard-container.sidebar-collapsed .menu-item {
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    height: 100% !important;
+    padding: 5px !important;
+    gap: 4px !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+  }
+
+  .menu-item.active {
+    color: #ffffff !important;
+    border-top: 3px solid #CCFF00; /* Garis indikator menu aktif */
+    background: transparent !important;
+  }
+
+  .menu-item:not(.active) {
+    color: #8fa6b8 !important;
+  }
+
+  .menu-icon {
+    font-size: 20px !important;
+    margin: 0 !important;
+  }
+
+  /* Munculkan kembali teks menu khusus di HP, tapi dengan ukuran kecil */
+  .menu-text,
+  .logout-text,
+  .dashboard-container.sidebar-collapsed .menu-text,
+  .dashboard-container.sidebar-collapsed .logout-text {
+    display: block !important;
+    font-size: 10px !important;
+    font-weight: 500 !important;
+  }
+
+  /* Modifikasi Tombol Logout */
+  .sidebar-bottom {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .logout-btn,
+  .dashboard-container.sidebar-collapsed .logout-btn {
+    background: transparent !important;
+    color: #ff4d4f !important;
+    flex-direction: column !important;
+    padding: 5px !important;
+    width: auto !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+    gap: 4px !important;
+  }
+
+  .logout-icon {
+    font-size: 20px !important;
+    margin: 0 !important;
+  }
+
+
+  /* 2. MAIN CONTENT AREA (Konten Utama) */
+  .main-content,
+  .project-page-container,
+  .chatbot-page-container,
+  .detail-page-container {
+    order: 1; /* Konten di atas navigasi */
+    height: calc(100vh - 65px) !important; /* Sisa tinggi layar dikurangi navigasi */
+    width: 100%;
+    padding: 15px !important;
+    overflow-y: auto !important;
+  }
+
+  /* 3. HEADER DASHBOARD */
+  .dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .header-left .welcome-text h1 {
+    font-size: 18px; /* Teks sapaan sedikit dikecilkan */
+  }
+
+  .header-right {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  .header-user-row {
+    order: 2;
+  }
+
+  .date-filter-pill {
+    order: 1;
+    flex: 1;
+    margin-right: 15px;
+    justify-content: space-between;
+  }
+
+  .date-input {
+    width: 45%;
+  }
+
+  /* 4. STATS GRID (Kartu Statistik Jadi 2 Kolom) */
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .stat-card {
+    height: 85px;
+    padding: 10px 12px 10px 24px;
+    border-radius: 16px;
+  }
+
+  .stat-value {
+    font-size: 26px;
+  }
+
+  .stat-icon {
+    font-size: 14px;
+  }
+
+  .stat-title {
+    font-size: 10px;
+  }
+
+  /* 5. PROJECT HEALTH GRID (1 Kolom Tumpuk) */
+  .project-health-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* 6. TABEL PROJECT (Bisa Scroll Kanan-Kiri Halus) */
+  .project-filter-bar {
+    flex-direction: column;
+    gap: 10px;
+    height: auto !important;
+    padding: 15px;
+  }
+
+  .filter-group,
+  .search-group,
+  .pill-input-wrapper {
+    width: 100%;
+  }
+
+  .project-table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .project-table {
+    min-width: 750px; /* Pertahankan lebar agar tabel tidak berantakan */
+  }
+
+  /* 7. PROJECT DETAIL (KANBAN) */
+  .detail-top-header {
+    margin-bottom: 10px;
+  }
+  
+  .kanban-board-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .kanban-column {
+    width: 100%;
+    min-height: auto;
+  }
+
+  /* 8. CHATBOT ASSISTANT */
+  .chatbot-top-header {
+    display: none; /* Sembunyikan header extra di HP agar ruang chat lebih luas */
+  }
+
+  .chatbot-card {
+    margin-bottom: 0 !important;
+    border: 1px solid #496D89;
+  }
+
+  .chat-bubble {
+    max-width: 88% !important; /* Bubble chat melebar di HP agar tidak tergencet */
+    padding: 12px 14px 18px 14px !important;
+  }
+
+  .chatbot-input-pill input {
+    font-size: 14px; /* Hindari auto-zoom di keyboard Safari iOS */
+  }
+
+  /* 9. MODAL PROFIL & SPECS */
+  .specs-modal-content {
+    width: 90% !important;
+    margin: auto;
+  }
+}

@@ -19,6 +19,8 @@ const MainContent = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectStatusFilter, setProjectStatusFilter] = useState('All Statuses');
+  // Tab asal sebelum membuka detail proyek, dipakai oleh tombol Kembali
+  const [detailOrigin, setDetailOrigin] = useState('projects');
 
   // State Profile dengan penyimpanan otomatis ke LocalStorage
   const [userName, setUserName] = useState(() => {
@@ -59,8 +61,13 @@ const MainContent = () => {
   };
 
   const handleSelectProject = (project) => {
+    if (activeTab !== 'detail') setDetailOrigin(activeTab);
     setSelectedProject(project);
     setActiveTab('detail');
+  };
+
+  const handleBackFromDetail = () => {
+    setActiveTab(detailOrigin);
   };
 
   return (
@@ -99,6 +106,7 @@ const MainContent = () => {
           onLogout={handleLogout} 
           activeTab={activeTab}
           onNavigate={handleNavigate}
+          onBack={handleBackFromDetail}
           project={selectedProject}
           sidebarCollapsed={sidebarCollapsed}
           onToggleSidebar={handleToggleSidebar}
