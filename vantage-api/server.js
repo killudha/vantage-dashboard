@@ -5,6 +5,7 @@ const Groq = require('groq-sdk');
 
 const projectRoutes = require('./src/routes/projectRoutes');
 const authRoutes = require('./src/routes/authRoutes');
+const { verifyToken } = require('./src/middlewares/authMiddleware');
 const { getCachedProjects } = require('./src/controllers/projectController');
 const { parseDate, processTask, summarizeProjects } = require('./src/services/projectService');
 
@@ -13,7 +14,13 @@ const PORT = process.env.PORT || 5000;
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || '' });
 
-app.use(cors());
+// Domain frontend yang boleh memanggil API ini (pisahkan dengan koma).
+// Atur lewat CORS_ORIGIN di Vercel. Saat lokal, 5173 (dev) dan 4173 (preview) otomatis diizinkan.
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:4173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.use('/api/projects', projectRoutes);
@@ -26,13 +33,15 @@ const TARGET_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
 // Batas putaran tool-calling supaya tidak looping tanpa henti
 const MAX_TOOL_ROUNDS = 5;
 
-groq.models.list()
-  .then((res) => {
-    console.log('✅ Groq API terhubung. Model aktif:', res.data.map((m) => m.id));
-  })
-  .catch((err) => {
-    console.error('⚠️ Gagal terhubung ke Groq API. Cek GROQ_API_KEY di .env:', err.message);
-  });
+if (require.main === module) {
+  groq.models.list()
+    .then((res) => {
+      console.log('✅ Groq API terhubung. Model aktif:', res.data.map((m) => m.id));
+    })
+    .catch((err) => {
+      console.error('⚠️ Gagal terhubung ke Groq API. Cek GROQ_API_KEY di .env:', err.message);
+    });
+}
 
 // ============================================================================
 // 1. DEKLARASI TOOL
@@ -200,7 +209,7 @@ const toolHandlers = {
 //    Alur: kirim ke AI -> kalau AI minta tool, server jalankan tool ->
 //    hasilnya dikirim balik ke AI -> ulangi sampai AI memberi jawaban final.
 // ============================================================================
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', verifyToken, async (req, res) => {
   try {
     const { message, history = [] } = req.body;
 
@@ -325,6 +334,14 @@ app.get('/', (req, res) => {
   res.send('Vantage Backend API running with Groq AI!');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server nyala di http://localhost:${PORT}`);
-});
+app.get('/health', (req, res) => res.json({ ok: true }));
+
+// Vercel mengambil `app` dari sini dan menjalankannya sendiri.
+module.exports = app;
+
+// Saat dijalankan langsung (node server.js / nodemon) server tetap menyala seperti biasa.
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server nyala di http://localhost:${PORT}`);
+  });
+}
