@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config.js';
 import '../styles/Dashboard.css';
 import '../styles/Chatbotanimations.css';
 import { RevealText, TypingDots } from './ChatParts';
@@ -192,7 +193,7 @@ const Dashboard = ({
       const token = localStorage.getItem('vantage_token');
       
       const response = await axios.post(
-        'http://localhost:5000/api/chat',
+        `${API_URL}/api/chat`,
         { message: userQuery },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -252,7 +253,7 @@ const Dashboard = ({
       }
 
       try {
-        let url = 'http://localhost:5000/api/projects';
+        let url = `${API_URL}/api/projects`;
         if (startDate && endDate) {
           url += `?startDate=${startDate}&endDate=${endDate}`;
         }

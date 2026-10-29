@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '../config.js';
 import '../styles/Dashboard.css';
 import '../styles/ProjectDetail.css';
 import { 
@@ -41,7 +42,7 @@ const ProjectDetail = ({ onLogout, activeTab = 'detail', onNavigate, onBack, pro
       }
 
       try {
-        const response = await axios.get('http://localhost:5000/api/projects', {
+        const response = await axios.get(`${API_URL}/api/projects`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
