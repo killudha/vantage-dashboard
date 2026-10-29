@@ -51,6 +51,7 @@ To make all backend features work (including Authentication and the AI Assistant
 PORT=5000
 
 # Supabase credentials for authentication
+SHEET_CSV_URL=your_csv_link
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_anon_key
 
@@ -69,7 +70,7 @@ The frontend and backend run separately, so you will need **two terminal windows
 ```bash
 cd vantage-api
 npm install
-npx nodemon server.js
+node server.js
 ```
 
 The API will run on `http://localhost:5000` (or the `PORT` you set in `.env`).
